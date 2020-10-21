@@ -170,7 +170,7 @@ class InvalidationNetwork(nn.Module):
             ResidualBlock(base_channel),
             ResidualBlock(base_channel),
             ResidualBlock(base_channel),
-            nn.Conv2d(base_channel, 1, 3, 1, 1, bias=False)
+            nn.Conv2d(base_channel, 1, 3, 1, 1, bias=False),
         )
 
     def forward(self, left_tower, right_tower, full_res_disp, rgb_map):
@@ -181,5 +181,5 @@ class InvalidationNetwork(nn.Module):
         cat_feature = torch.cat([upsampled_invalid_mask, full_res_disp, rgb_map], dim=1)
         invalid_mask_res = self.refine_conv(cat_feature)
         refined_invalid_mask = upsampled_invalid_mask + invalid_mask_res
-
+        refined_invalid_mask = F.sigmoid(refined_invalid_mask)
         return refined_invalid_mask
