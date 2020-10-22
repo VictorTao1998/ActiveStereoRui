@@ -76,10 +76,20 @@ class Windowed_Matching_Loss(nn.Module):
         losses = {}
         if "invalid_mask" in preds.keys():
             invalid_mask = preds["invalid_mask"]
-            invalid_loss = (- torch.log(invalid_mask)).mean()
-            losses["invalid_loss"] = invalid_loss
+            invalid_reg_loss = (- torch.log(invalid_mask)).mean()
+            losses["invalid_reg_loss"] = invalid_reg_loss
             rec_loss = (C * invalid_mask).mean()
             losses["rec_loss"] = rec_loss
+
+            right_disp = preds["right_disp"]
+            reproj_disp = self.fetch_module(right_disp, disp)
+
+            disp_consistency = torch.abs(disp - reproj_disp)
+            valid_mask_from_consistency = (disp_consistency < 1)
+            invalid_mask_from_consistency = (disp_consistency >= 1)
+            invalid_loss = (-torch.log(invalid_mask)*valid_mask_from_consistency
+                            - torch.log(1-invalid_mask)*invalid_mask_from_consistency).mean()
+            losses["invalid_loss"] = invalid_loss
         else:
             losses["rec_loss"] = C.mean()
 

@@ -53,7 +53,7 @@ def load_cam_dtu(file_path, num_depth, interval_scale=1.0):
     return cam
 
 
-def load_cam_indoor(file_path, num_depth, min_depth=None, max_depth=None):
+def load_cam_indoor(file_path, num_depth=1, min_depth=None, max_depth=None):
     """ read camera txt file """
     file = open(file_path)
     words = file.read().split()

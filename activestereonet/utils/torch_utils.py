@@ -79,3 +79,38 @@ def get_flat_nn(xyz, knn=16):
     idx = torch.clamp(idx, 0, depth * height * width - 1)
 
     return idx
+
+def compute_visibility_mask(depth_map_i, depth_map_j, RT_i, RT_j, K_i, K_j, depth_threshold=2.0):
+    """compute visibility mask of view i"""
+    assert (depth_map_i.shape == depth_map_j.shape)
+    height, width = depth_map_i.shape
+    num_pts = height * width
+    feature_grid = get_pixel_grids_np(depth_map_i.shape[0], depth_map_i.shape[1])
+    uv = np.matmul(np.linalg.inv(K_i), feature_grid)
+    gt_cam_points = uv * np.reshape(depth_map_i, (1, -1))
+    R = RT_i[:3, :3]
+    t = RT_i[:3, 3:4]
+    R_inv = np.linalg.inv(R)
+    gt_world_points = np.matmul(R_inv, gt_cam_points - t)
+    R_j = RT_j[:3, :3]
+    t_j = RT_j[:3, 3:4]
+    gt_cam_points_j = np.matmul(R_j, gt_world_points) + t_j
+    x = torch.tensor(gt_cam_points_j[0, :]).float()
+    y = torch.tensor(gt_cam_points_j[1, :]).float()
+    z = torch.tensor(gt_cam_points_j[2, :]).float()
+    normal_uv = torch.stack([x / z, y / z, torch.ones_like(x)])
+    uv = torch.matmul(torch.tensor(K_j).float(), normal_uv)
+    uv = (uv[:2, :]).transpose(0, 1)
+    grid = (uv - 0.5).view(1, num_pts, 1, 2)
+    grid[..., 0] = (grid[..., 0] / float(width - 1)) * 2 - 1.0
+    grid[..., 1] = (grid[..., 1] / float(height - 1)) * 2 - 1.0
+
+    grid[:, z < 0, ...] = 100
+    grid[torch.isnan(grid)] = 100
+    depth_j_tensor = torch.tensor(depth_map_j).float().view(1, 1, height, width)
+    fetch_depth = F.grid_sample(depth_j_tensor, grid, mode="nearest")
+    fetch_depth = fetch_depth.view(height, width).numpy()
+    proj_depth = z.view(height, width).numpy()
+
+    visibility_mask = (np.abs(fetch_depth - proj_depth) < depth_threshold) * (proj_depth > 0) * (fetch_depth > 0)
+    return visibility_mask

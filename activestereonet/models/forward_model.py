@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from activestereonet.modules.networks import SiameseTower, CostVolumeFilter, DisparityRefinement, InvalidationNetwork
 from activestereonet.modules.functions import build_cost_volume
 
+
 class ActiveStereoNet(nn.Module):
     def __init__(self, base_channel, num_disp):
         super(ActiveStereoNet, self).__init__()
@@ -14,7 +15,7 @@ class ActiveStereoNet(nn.Module):
         self.disp_refine_net = DisparityRefinement(base_channel)
         self.invalid_net = InvalidationNetwork(base_channel)
 
-    def forward(self, data_batch, pred_invalid=False):
+    def forward(self, data_batch, pred_invalid=False, consistency_check=False):
         preds = {}
         left_ir, right_ir = data_batch["left_ir"], data_batch["right_ir"]
         batch_size, _, height, width = left_ir.shape
@@ -25,7 +26,7 @@ class ActiveStereoNet(nn.Module):
         filtered_cost_volume = filtered_cost_volume.squeeze(1)
         filtered_cost_volume = F.softmax(filtered_cost_volume, dim=1)
 
-        disp_array = torch.linspace(0, self.num_disp-1, self.num_disp, dtype=left_ir.dtype, device=left_ir.device)\
+        disp_array = torch.linspace(0, self.num_disp - 1, self.num_disp, dtype=left_ir.dtype, device=left_ir.device) \
             .view((1, 1, 1, self.num_disp))
 
         coarse_disp_pred = (disp_array * filtered_cost_volume).sum(-1).unsqueeze(1)
@@ -38,12 +39,32 @@ class ActiveStereoNet(nn.Module):
         if pred_invalid:
             invalid_mask_pred = self.invalid_net(left_tower_feature, right_tower_feature, refined_disp_pred, left_ir)
             preds["invalid_mask"] = invalid_mask_pred
-
+            if consistency_check:
+                # right image disparity prediction for consistency check
+                with torch.no_grad():
+                    flip_left_ir = torch.flip(left_ir, [3])
+                    flip_right_ir = torch.flip(right_ir, [3])
+                    flip_left_tower_feature = self.siamese_tower(flip_left_ir)
+                    flip_right_tower_feature = self.siamese_tower(flip_right_ir)
+                    flip_cost_volume = build_cost_volume(flip_right_tower_feature, flip_left_tower_feature,
+                                                         self.num_disp)
+                    flip_filtered_cost_volume = self.cost_volume_filter(flip_cost_volume)
+                    flip_filtered_cost_volume = flip_filtered_cost_volume.squeeze(1)
+                    flip_filtered_cost_volume = F.softmax(flip_filtered_cost_volume, dim=1)
+                    disp_array = torch.linspace(0, self.num_disp - 1, self.num_disp, dtype=left_ir.dtype,
+                                                device=left_ir.device).view((1, 1, 1, self.num_disp))
+                    flip_coarse_disp_pred = (disp_array * flip_filtered_cost_volume).sum(-1).unsqueeze(1)
+                    flip_upsampled_disp_pred = F.upsample_bilinear(flip_filtered_cost_volume, (height, width))
+                    flip_upsampled_disp_pred = flip_upsampled_disp_pred / self.num_disp
+                    flip_upsampled_disp_pred = self.disp_refine_net(flip_upsampled_disp_pred, flip_right_ir)
+                    flip_right_disp_pred = flip_upsampled_disp_pred * self.num_disp
+                    preds["right_disp"] = torch.flip(flip_right_disp_pred, [3])
 
         refined_disp_pred = refined_disp_pred * self.num_disp
         preds["refined_disp"] = refined_disp_pred
 
         return preds
+
 
 if __name__ == '__main__':
     batch_size = 1
