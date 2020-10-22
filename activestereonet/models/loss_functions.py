@@ -46,11 +46,14 @@ class Fetch_Module(nn.Module):
 
 
 class Windowed_Matching_Loss(nn.Module):
-    def __init__(self, lcn_kernel_size=9, window_size=33, sigma_weight=2):
+    def __init__(self, lcn_kernel_size=9, window_size=33, sigma_weight=2,
+                 invalid_reg_weight=1.0, invalid_weight=1.0):
         super(Windowed_Matching_Loss, self).__init__()
         self.lcn_kernel_size = lcn_kernel_size
         self.window_size = window_size
         self.sigma_weight = sigma_weight
+        self.invalid_reg_weight = invalid_reg_weight
+        self.invalid_weight = invalid_weight
         self.fetch_module = Fetch_Module()
 
     def forward(self, data_batch, preds):
@@ -77,7 +80,7 @@ class Windowed_Matching_Loss(nn.Module):
         if "invalid_mask" in preds.keys():
             invalid_mask = preds["invalid_mask"]
             invalid_reg_loss = (- torch.log(invalid_mask)).mean()
-            losses["invalid_reg_loss"] = invalid_reg_loss
+            losses["invalid_reg_loss"] = invalid_reg_loss * self.invalid_reg_weight
             rec_loss = (C * invalid_mask).mean()
             losses["rec_loss"] = rec_loss
 
@@ -89,12 +92,31 @@ class Windowed_Matching_Loss(nn.Module):
             invalid_mask_from_consistency = (disp_consistency >= 1)
             invalid_loss = (-torch.log(invalid_mask)*valid_mask_from_consistency
                             - torch.log(1-invalid_mask)*invalid_mask_from_consistency).mean()
-            losses["invalid_loss"] = invalid_loss
+            losses["invalid_loss"] = invalid_loss * self.invalid_weight
         else:
             losses["rec_loss"] = C.mean()
 
         return losses
 
+
+class Supervision_Loss(nn.Module):
+    def __init__(self, invalid_weight=1.0):
+        super(Supervision_Loss, self).__init__()
+        self.invalid_weight = invalid_weight
+
+    def forward(self, data_batch, preds):
+        disp_pred = preds["refined_disp"]
+        disp_gt = data_batch["disp_map"]
+        disp_loss = F.l1_loss(disp_pred, disp_gt, reduction="mean")
+
+        invalid_mask_pred = preds["invalid_mask"]
+        invalid_mask_gt = data_batch["visibility_mask"]
+        invalid_loss = -(torch.log(invalid_mask_pred)*invalid_mask_gt + torch.log(1-invalid_mask_pred)*(1-invalid_mask_gt)).mean()
+
+        return {
+            "disp_loss": disp_loss,
+            "invalid_loss": invalid_loss * self.invalid_weight,
+        }
 
 def test_lcn(image_path):
     import cv2

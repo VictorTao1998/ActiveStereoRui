@@ -9,7 +9,7 @@ from torch.utils.data import Dataset
 from activestereonet.utils.preprocess import mask_depth_image, norm_image_255, crop_input
 import activestereonet.utils.io as io
 from activestereonet.utils.eval_file_logger import get_pixel_grids_np
-from activestereonet.models.self_supervise import Fetch_Module
+from activestereonet.models.loss_functions import Fetch_Module
 
 
 class SuLabIndoorActiveSet(Dataset):
