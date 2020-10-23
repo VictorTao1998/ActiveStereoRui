@@ -33,7 +33,7 @@ class Metric(nn.Module):
 
         if "invalid_mask" in preds.keys():
             invalid_mask_pred = preds["invalid_mask"]
-            invalid_mask_gt = data_batch["visible_mask"]
+            invalid_mask_gt = data_batch["invalid_mask"]
             for threshold in self.invalid_threshold_list:
                 true_pos = (invalid_mask_pred > threshold).float() * invalid_mask_gt
                 rec = true_pos.float().sum() / (invalid_mask_gt.float().sum() + 1e-6)

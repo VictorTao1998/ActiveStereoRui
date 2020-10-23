@@ -111,7 +111,7 @@ class SuLabIndoorActiveSet(Dataset):
         left_disp_map = (baseline_length * focal_length / depths[0]).unsqueeze(0).unsqueeze(0)
         right_disp_map = (baseline_length * focal_length / depths[1]).unsqueeze(0).unsqueeze(0)
         reproj_disp_map = self.fetch_module(right_disp_map, left_disp_map)
-        data_batch["visibility_mask"] = torch.abs(left_disp_map[0] - reproj_disp_map[0]) < 1e-3
+        data_batch["invalid_mask"] = (torch.abs(left_disp_map[0] - reproj_disp_map[0]) > 1e-3).float()  # 1 for invalid regions
 
         data_batch["left_ir"] = torch.tensor(images[0]).float().unsqueeze(0)
         data_batch["right_ir"] = torch.tensor(images[1]).float().unsqueeze(0)

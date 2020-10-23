@@ -79,19 +79,18 @@ class Windowed_Matching_Loss(nn.Module):
         losses = {}
         if "invalid_mask" in preds.keys():
             invalid_mask = preds["invalid_mask"]
-            invalid_reg_loss = (- torch.log(invalid_mask)).mean()
+            invalid_reg_loss = (- torch.log(1 - invalid_mask)).mean()
             losses["invalid_reg_loss"] = invalid_reg_loss * self.invalid_reg_weight
-            rec_loss = (C * invalid_mask).mean()
+            rec_loss = (C * (1 - invalid_mask)).mean()
             losses["rec_loss"] = rec_loss
 
             right_disp = preds["right_disp"]
             reproj_disp = self.fetch_module(right_disp, disp)
 
             disp_consistency = torch.abs(disp - reproj_disp)
-            valid_mask_from_consistency = (disp_consistency < 1)
-            invalid_mask_from_consistency = (disp_consistency >= 1)
-            invalid_loss = (-torch.log(invalid_mask)*valid_mask_from_consistency
-                            - torch.log(1-invalid_mask)*invalid_mask_from_consistency).mean()
+            invalid_mask_from_consistency = (disp_consistency > 1).float()
+            invalid_loss = (-torch.log(invalid_mask) * invalid_mask_from_consistency
+                            - torch.log(1 - invalid_mask) * (1 - invalid_mask_from_consistency)).mean()
             losses["invalid_loss"] = invalid_loss * self.invalid_weight
         else:
             losses["rec_loss"] = C.mean()
@@ -111,12 +110,14 @@ class Supervision_Loss(nn.Module):
 
         invalid_mask_pred = preds["invalid_mask"]
         invalid_mask_gt = data_batch["visibility_mask"]
-        invalid_loss = -(torch.log(invalid_mask_pred)*invalid_mask_gt + torch.log(1-invalid_mask_pred)*(1-invalid_mask_gt)).mean()
+        invalid_loss = -(torch.log(invalid_mask_pred) * invalid_mask_gt + torch.log(1 - invalid_mask_pred) * (
+                    1 - invalid_mask_gt)).mean()
 
         return {
             "disp_loss": disp_loss,
             "invalid_loss": invalid_loss * self.invalid_weight,
         }
+
 
 def test_lcn(image_path):
     import cv2
