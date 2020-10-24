@@ -21,11 +21,11 @@ from activestereonet.utils.checkpoint import Checkpointer
 from activestereonet.data_loader import build_data_loader
 from activestereonet.utils.tensorboard_logger import TensorboardLogger
 from activestereonet.utils.metric_logger import MetricLogger
-from activestereonet.utils.file_logger import file_logger, organized_file_logger
+from activestereonet.utils.file_logger import file_logger
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="PyTorch Point-MVSNet Training")
+    parser = argparse.ArgumentParser(description="PyTorch ActiveStereoNet Training")
     parser.add_argument(
         "--cfg",
         dest="config_file",
@@ -48,10 +48,8 @@ def parse_args():
 def train_model(model,
                 loss_fn,
                 metric_fn,
-                image_scales,
-                inter_scales,
-                use_occ_pred,
-                isFlow,
+                pred_invalid,
+                consistency_check,
                 data_loader,
                 optimizer,
                 curr_epoch,
@@ -71,11 +69,15 @@ def train_model(model,
     for data_batch in data_loader:
         iteration += 1
         data_time = time.time() - end
-        curr_ref_img_path = data_batch["ref_img_path"]
-        path_list.extend(curr_ref_img_path)
-        data_batch = {k: v.cuda(non_blocking=True) for k, v in data_batch.items() if isinstance(v, torch.Tensor)}
+        data_batch_input = {}
+        for k, v in data_batch.items():
+            if isinstance(v, torch.Tensor):
+                data_batch_input[k] = v.cuda(non_blocking=True)
+            else:
+                data_batch_input[k] = v
+        data_batch = data_batch_input
 
-        preds = model(data_batch, image_scales, inter_scales, use_occ_pred, isFlow)
+        preds = model(data_batch, pred_invalid, consistency_check)
         optimizer.zero_grad()
 
         loss_dict = loss_fn(preds)
@@ -115,7 +117,7 @@ def train_model(model,
         if file_log_period == 0:
             continue
         if iteration % file_log_period == 0:
-            file_logger(data_batch, preds, curr_epoch * total_iteration + iteration, output_dir, prefix="train")
+            file_logger(data_batch, preds, output_dir, prefix="train")
 
     return meters
 
@@ -123,10 +125,8 @@ def train_model(model,
 def validate_model(model,
                    loss_fn,
                    metric_fn,
-                   image_scales,
-                   inter_scales,
-                   use_occ_pred,
-                   isFlow,
+                   pred_invalid,
+                   consistency_check,
                    data_loader,
                    curr_epoch,
                    tensorboard_logger,
@@ -144,10 +144,15 @@ def validate_model(model,
         for data_batch in data_loader:
             iteration += 1
             data_time = time.time() - end
-            ref_img_path_list = data_batch["ref_img_path"]
-            data_batch = {k: v.cuda(non_blocking=True) for k, v in data_batch.items() if isinstance(v, torch.Tensor)}
+            data_batch_input = {}
+            for k, v in data_batch.items():
+                if isinstance(v, torch.Tensor):
+                    data_batch_input[k] = v.cuda(non_blocking=True)
+                else:
+                    data_batch_input[k] = v
+            data_batch = data_batch_input
 
-            preds = model(data_batch, image_scales, inter_scales, use_occ_pred, isFlow)
+            preds = model(data_batch, pred_invalid, consistency_check)
             loss_dict = loss_fn(preds)
             metric_dict = metric_fn(preds, data_batch)
             losses = sum(loss_dict.values())
@@ -174,11 +179,8 @@ def validate_model(model,
 
             if file_log_period == 0:
                 continue
-            # save all validation results in an organized order
-            if file_log_period == 1:
-                organized_file_logger(data_batch, preds, ref_img_path_list, output_dir)
-            elif iteration % file_log_period == 0:
-                file_logger(data_batch, preds, curr_epoch * total_iteration + iteration, output_dir, prefix="valid")
+            if iteration % file_log_period == 0:
+                file_logger(data_batch, preds, output_dir, prefix="valid")
 
     return meters
 
@@ -229,10 +231,8 @@ def train(cfg, output_dir=""):
         train_meters = train_model(model,
                                    loss_fn,
                                    metric_fn,
-                                   image_scales=cfg.MODEL.TRAIN.IMG_SCALES,
-                                   inter_scales=cfg.MODEL.TRAIN.INTER_SCALES,
-                                   use_occ_pred=(cur_epoch > cfg.SCHEDULER.GT_OCC_EPOCH),
-                                   isFlow=(cur_epoch > cfg.SCHEDULER.INIT_EPOCH),
+                                   pred_invalid=True,
+                                   consistency_check=(cur_epoch > cfg.SCHEDULER.INIT_EPOCH),
                                    data_loader=train_data_loader,
                                    optimizer=optimizer,
                                    curr_epoch=epoch,
@@ -258,10 +258,8 @@ def train(cfg, output_dir=""):
             val_meters = validate_model(model,
                                         loss_fn,
                                         metric_fn,
-                                        image_scales=cfg.MODEL.VAL.IMG_SCALES,
-                                        inter_scales=cfg.MODEL.VAL.INTER_SCALES,
-                                        use_occ_pred=cfg.TEST.USE_OCC_PRED,
-                                        isFlow=(cur_epoch > cfg.SCHEDULER.INIT_EPOCH),
+                                        pred_invalid=True,
+                                        consistency_check=(cur_epoch > cfg.SCHEDULER.INIT_EPOCH),
                                         data_loader=val_data_loader,
                                         curr_epoch=epoch,
                                         tensorboard_logger=tensorboard_logger,

@@ -13,7 +13,6 @@ from activestereonet.models.loss_functions import Fetch_Module
 
 
 class SuLabIndoorActiveSet(Dataset):
-    img_height, img_width = 512, 640
     left_img_idx, right_img_idx = 0, 1
 
     def __init__(self, root_dir, mode, view_list_file, use_mask=False):
@@ -37,6 +36,8 @@ class SuLabIndoorActiveSet(Dataset):
         for l in tqdm(lines):
             scene_dir = self.root_dir / l.strip()
             for frame_view_dir in sorted(scene_dir.listdir()):
+                if not frame_view_dir.isdir():
+                    continue
                 paths = {}
                 view_image_paths = []
                 view_cam_paths = []
@@ -108,6 +109,10 @@ class SuLabIndoorActiveSet(Dataset):
 
         # compute visibility mask
         data_batch = {}
+        data_batch["cam_left"] = torch.tensor(cams[0]).float()
+        data_batch["cam_right"] = torch.tensor(cams[1]).float()
+        data_batch["baseline_length"] = torch.tensor(baseline_length).float()
+        data_batch["focal_length"] = torch.tensor(focal_length).float()
         left_disp_map = (baseline_length * focal_length / depths[0]).unsqueeze(0).unsqueeze(0)
         right_disp_map = (baseline_length * focal_length / depths[1]).unsqueeze(0).unsqueeze(0)
         reproj_disp_map = self.fetch_module(right_disp_map, left_disp_map)
@@ -116,6 +121,7 @@ class SuLabIndoorActiveSet(Dataset):
         data_batch["left_ir"] = torch.tensor(images[0]).float().unsqueeze(0)
         data_batch["right_ir"] = torch.tensor(images[1]).float().unsqueeze(0)
         data_batch["disp_map"] = left_disp_map[0]
+        data_batch["image_path"] = paths["view_image_paths"][0]
 
         return data_batch
 
@@ -125,12 +131,15 @@ class SuLabIndoorActiveSet(Dataset):
 
 if __name__ == '__main__':
     dataset = SuLabIndoorActiveSet(
-        root_dir="/home/xulab/Nautilus/",
+        root_dir="/home/rayc/",
         mode="train",
-        view_list_file="/home/xulab/Nautilus/example.txt"
+        view_list_file="/home/rayc/sulab_active/example.txt"
     )
 
     print("length", dataset.__len__())
 
     for k, v in dataset[0].items():
-        print(k, v.shape)
+        if isinstance(v, torch.Tensor):
+            print(k, v.shape)
+        else:
+            print(k, v)

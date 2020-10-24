@@ -80,7 +80,7 @@ def eval_file_logger(data_batch, preds, ref_img_path, folder):
                 save_points(osp.join(scene_folder, "{:08d}_{}pts.xyz".format(out_index, k)), world_pts)
 
 
-def depth2pts_np(depth_map, cam_intrinsic, cam_extrinsic):
+def depth2pts_np(depth_map, cam_intrinsic, cam_extrinsic, color_map=None):
     feature_grid = get_pixel_grids_np(depth_map.shape[0], depth_map.shape[1])
 
     uv = np.matmul(np.linalg.inv(cam_intrinsic), feature_grid)
@@ -91,7 +91,19 @@ def depth2pts_np(depth_map, cam_intrinsic, cam_extrinsic):
     R_inv = np.linalg.inv(R)
 
     world_points = np.matmul(R_inv, cam_points - t).transpose()
-    return world_points
+    if color_map is None:
+        return world_points
+    else:
+        if len(color_map.shape) == 2:
+            color_map = color_map.reshape(-1, 1)
+            world_points = np.concatenate([world_points, color_map], axis=-1)
+            return world_points
+        elif len(color_map.shape) == 3:
+            color_map = color_map.reshape(-1, color_map.shape[-1])
+            world_points = np.concatenate([world_points, color_map], axis=-1)
+            return world_points
+        else:
+            raise NotImplementedError
 
 
 def get_pixel_grids_np(height, width):

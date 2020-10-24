@@ -33,6 +33,7 @@ class ActiveStereoNet(nn.Module):
         preds["coarse_disp"] = coarse_disp_pred
 
         upsampled_disp_pred = F.upsample_bilinear(coarse_disp_pred, (height, width))
+        preds["upsampled_disp"] = upsampled_disp_pred
         normed_upsampled_disp_pred = upsampled_disp_pred / self.num_disp
         refined_disp_pred = self.disp_refine_net(normed_upsampled_disp_pred, left_ir)
 
