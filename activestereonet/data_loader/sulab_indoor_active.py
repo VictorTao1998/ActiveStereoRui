@@ -96,7 +96,7 @@ class SuLabIndoorActiveSet(Dataset):
         # compute baseline_length
         RT_ij = RT_left @ np.linalg.inv(RT_right)
         assert (np.allclose(RT_ij[:3, :3], np.eye(3)))
-        assert (np.sum(RT_ij[1:3, 3] ** 2) < 1e-6)
+        assert (np.sum(RT_ij[1:3, 3] ** 2) < 1e-6), "{} {}".format(paths["view_cam_paths"][0], RT_ij[:3, 3])
         baseline_length = RT_ij[0, 3]
         focal_length = K_left[0, 0]
 
