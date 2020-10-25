@@ -32,9 +32,9 @@ class Fetch_Module(nn.Module):
         assert disp.shape == right_img.shape
         batch_size, channel, height, width = right_img.shape
 
-        x_grid = torch.linspace(0., width - 1, width, dtype=disp.dtype, device=disp.device)\
+        x_grid = torch.linspace(0., width - 1, width, dtype=disp.dtype, device=disp.device) \
             .view(1, 1, width, 1).expand((batch_size, height, width, 1))
-        y_grid = torch.linspace(0., height - 1, height, dtype=disp.dtype, device=disp.device)\
+        y_grid = torch.linspace(0., height - 1, height, dtype=disp.dtype, device=disp.device) \
             .view(1, height, 1, 1).expand((batch_size, height, width, 1))
 
         x_grid = x_grid - disp.permute(0, 2, 3, 1)
@@ -106,20 +106,27 @@ class Supervision_Loss(nn.Module):
         self.invalid_weight = invalid_weight
 
     def forward(self, preds, data_batch):
-        disp_pred = preds["refined_disp"]
+        coarse_disp_pred = preds["coarse_disp"]
+        refined_disp_pred = preds["refined_disp"]
         disp_gt = data_batch["disp_map"]
+        coarse_disp_gt = F.interpolate(disp_gt, (coarse_disp_pred.shape[2], coarse_disp_pred.shape[3]))
 
-        invalid_mask_pred = preds["invalid_mask"]
+        invalid_mask_pred = torch.clamp(preds["invalid_mask"], 1e-7, 1 - 1e-7)
         invalid_mask_gt = data_batch["invalid_mask"]
         valid_mask_gt = 1 - invalid_mask_gt
+        coarse_valid_mask_gt = F.interpolate(valid_mask_gt, (coarse_disp_pred.shape[2], coarse_disp_pred.shape[3]))
 
         invalid_loss = -(torch.log(invalid_mask_pred) * invalid_mask_gt + torch.log(1 - invalid_mask_pred) * (
-                    1 - invalid_mask_gt)).mean()
+                1 - invalid_mask_gt)).mean()
 
-        disp_loss = (torch.abs(disp_pred - disp_gt) * valid_mask_gt).sum() / (valid_mask_gt.sum() + 1e-7)
+        refined_disp_loss = (torch.abs(refined_disp_pred - disp_gt) * valid_mask_gt).sum() / (
+                    valid_mask_gt.sum() + 1e-7)
+        coarse_disp_loss = (torch.abs(coarse_disp_pred - coarse_disp_gt) * coarse_valid_mask_gt).sum() / (
+                    coarse_valid_mask_gt.sum() + 1e-7)
 
         return {
-            "disp_loss": disp_loss,
+            "coarse_disp_loss": coarse_disp_loss,
+            "refined_disp_loss": refined_disp_loss,
             "invalid_loss": invalid_loss * self.invalid_weight,
         }
 

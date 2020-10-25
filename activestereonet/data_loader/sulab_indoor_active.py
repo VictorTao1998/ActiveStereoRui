@@ -13,7 +13,7 @@ from activestereonet.models.loss_functions import Fetch_Module
 
 
 class SuLabIndoorActiveSet(Dataset):
-    left_img_idx, right_img_idx = 0, 1
+    left_img_idx, right_img_idx = 3, 1
 
     def __init__(self, root_dir, mode, view_list_file, max_disp, use_mask=False):
         self.root_dir = Path(root_dir)
@@ -120,9 +120,9 @@ class SuLabIndoorActiveSet(Dataset):
 
         # occluded, out of FOV, larger than max disp
         data_batch["invalid_mask"] = (
-                (torch.abs(left_disp_map[0] - reproj_disp_map[0]) > 1e-3) + (reproj_disp_map == 0.0) + (
+                (torch.abs(left_disp_map[0] - reproj_disp_map[0]) > 5e-2) + (reproj_disp_map == 0.0) + (
                 left_disp_map > self.max_disp)).float()[0]  # 1 for invalid regions
-
+        left_disp_map = torch.clamp_max(left_disp_map, self.max_disp)
         data_batch["left_ir"] = torch.tensor(images[0]).float().unsqueeze(0)
         data_batch["right_ir"] = torch.tensor(images[1]).float().unsqueeze(0)
         data_batch["disp_map"] = left_disp_map[0]

@@ -24,16 +24,16 @@ class ActiveStereoNet(nn.Module):
         cost_volume = build_cost_volume(left_tower_feature, right_tower_feature, self.num_disp)
         filtered_cost_volume = self.cost_volume_filter(cost_volume)
         filtered_cost_volume = filtered_cost_volume.squeeze(1)
-        filtered_cost_volume = F.softmax(filtered_cost_volume, dim=-1)
+        filtered_cost_volume = F.softmax(-filtered_cost_volume, dim=-1)
 
         disp_array = torch.linspace(0, self.num_disp - 1, self.num_disp, dtype=left_ir.dtype, device=left_ir.device) \
             .view((1, 1, 1, self.num_disp))
 
         coarse_disp_pred = (disp_array * filtered_cost_volume).sum(-1).unsqueeze(1)
-        preds["coarse_disp"] = coarse_disp_pred
+        preds["coarse_disp"] = coarse_disp_pred * 8.0
 
         upsampled_disp_pred = F.upsample_bilinear(coarse_disp_pred, (height, width))
-        preds["upsampled_disp"] = upsampled_disp_pred
+        preds["upsampled_disp"] = upsampled_disp_pred * 8.0
         normed_upsampled_disp_pred = upsampled_disp_pred / self.num_disp
         refined_disp_pred = self.disp_refine_net(normed_upsampled_disp_pred, left_ir)
 
@@ -62,7 +62,7 @@ class ActiveStereoNet(nn.Module):
                     preds["right_disp"] = torch.flip(flip_right_disp_pred, [3])
 
         refined_disp_pred = refined_disp_pred * self.num_disp
-        preds["refined_disp"] = refined_disp_pred
+        preds["refined_disp"] = refined_disp_pred * 8.0
 
         return preds
 

@@ -46,6 +46,9 @@ def file_logger(data_batch, preds, output_dir, prefix):
     # process groundtruth
     gt_disp = data_batch["disp_map"][0][0].cpu().numpy()
     gt_depth = baseline_length * focal_length / gt_disp
+    gt_depth_min = gt_depth.min()
+    gt_depth_max = gt_depth.max()
+    depth_threshold = 100.0
     np.save(step_dir / "gt_depth.npy", gt_depth)
     fig = plt.figure(figsize=(10, 6))
     plt.subplots_adjust(left=0.05, right=0.85, top=0.95, bottom=0.05)
@@ -78,6 +81,7 @@ def file_logger(data_batch, preds, output_dir, prefix):
         metric = {}
         disp = preds[k][0][0].detach().cpu().numpy()
         depth = baseline_length * focal_length / disp
+        depth = np.clip(depth, gt_depth_min - depth_threshold, gt_depth_max + depth_threshold)
         np.save(step_dir / f"{kshort}_depth.npy", depth)
 
         fig = plt.figure(figsize=(10, 6))
@@ -90,11 +94,11 @@ def file_logger(data_batch, preds, output_dir, prefix):
         err = depth - gt_depth
         err[invalid_mask_bool] = 0.0
         metric["mean L1"] = np.abs(err).sum() / valid_mask_bool.sum()
-        metric["max"] = err.max()
-        metric["min"] = err.min()
-        metric["<10 mm"] = (np.abs(err) < 10).sum() * 100.0 / valid_mask_bool.sum()
-        metric["<30 mm"] = (np.abs(err) < 30).sum() * 100.0 / valid_mask_bool.sum()
-        metric["<50 mm"] = (np.abs(err) < 50).sum() * 100.0 / valid_mask_bool.sum()
+        metric["max L1"] = err.max()
+        metric["min L1"] = err.min()
+        metric["<10 mm"] = np.logical_and(np.abs(err) < 10, valid_mask_bool).sum() * 100.0 / valid_mask_bool.sum()
+        metric["<30 mm"] = np.logical_and(np.abs(err) < 30, valid_mask_bool).sum() * 100.0 / valid_mask_bool.sum()
+        metric["<50 mm"] = np.logical_and(np.abs(err) < 50, valid_mask_bool).sum() * 100.0 / valid_mask_bool.sum()
 
         fig = plt.figure(figsize=(10, 6))
         plt.subplots_adjust(left=0.05, right=0.85, top=0.95, bottom=0.05)
@@ -124,10 +128,10 @@ def file_logger(data_batch, preds, output_dir, prefix):
         plt.savefig(step_dir / f"{kshort}_norm_err.png")
 
         visualize_normal_map(normals, step_dir / f"{kshort}_normals.png")
-
-        metric["mean norm err"] = np.abs(normal_err).mean()
-        metric["<5 deg"] = (np.abs(normal_err) < 5).mean()
-        metric["<10 deg"] = (np.abs(normal_err) < 10).mean()
+        normal_err[invalid_mask_bool] = 0.0
+        metric["mean norm err"] = np.abs(normal_err).sum() / valid_mask_bool.sum()
+        metric["<5 deg"] = np.logical_and(np.abs(normal_err) < 5, valid_mask_bool).sum() * 100.0 / valid_mask_bool.sum()
+        metric["<10 deg"] = np.logical_and(np.abs(normal_err) < 10, valid_mask_bool).sum() * 100.0 / valid_mask_bool.sum()
 
         for mk, mv in metric.items():
             metric[mk] = str(mv)
