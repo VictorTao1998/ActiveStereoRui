@@ -19,6 +19,7 @@ def build_data_loader(cfg, mode="train"):
                 root_dir=cfg.DATA.TRAIN.ROOT_DIR,
                 mode="train",
                 view_list_file=cfg.DATA.TRAIN.VIEW_LIST_FILE,
+                max_disp=cfg.MODEL.MAX_DISP,
                 use_mask=cfg.DATA.TRAIN.USE_MASK,
             )
         elif mode == "val":
@@ -26,6 +27,7 @@ def build_data_loader(cfg, mode="train"):
                 root_dir=cfg.DATA.VAL.ROOT_DIR,
                 mode="val",
                 view_list_file=cfg.DATA.VAL.VIEW_LIST_FILE,
+                max_disp=cfg.MODEL.MAX_DISP,
                 use_mask=cfg.DATA.VAL.USE_MASK,
             )
         elif mode == "test":
@@ -33,6 +35,7 @@ def build_data_loader(cfg, mode="train"):
                 root_dir=cfg.DATA.TEST.ROOT_DIR,
                 mode="test",
                 view_list_file=cfg.DATA.TEST.VIEW_LIST_FILE,
+                max_disp=cfg.MODEL.MAX_DISP,
                 use_mask=cfg.DATA.TEST.USE_MASK,
             )
 

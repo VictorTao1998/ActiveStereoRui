@@ -10,13 +10,13 @@ from activestereonet.models.metric_functions import Metric
 def build_model(cfg):
     model = ActiveStereoNet(
         base_channel=cfg.MODEL.BASE_CHANNEL,
-        num_disp=cfg.MODEL.NUM_DISP,
+        max_disp=cfg.MODEL.MAX_DISP,
     )
     if cfg.MODEL.LOSS_TYPE == "SELF_SUPERVISE":
         loss_func = Windowed_Matching_Loss(
             lcn_kernel_size=cfg.MODEL.SELF_SUPERVISE.LCN_KERNEL_SIZE,
             window_size=cfg.MODEL.SELF_SUPERVISE.WINDOW_SIZE,
-            sigma_weight=cfg.MODEL.SIGMA_WEIGHT,
+            sigma_weight=cfg.MODEL.SELF_SUPERVISE.SIGMA_WEIGHT,
             invalid_reg_weight=cfg.MODEL.INVALID_REG_WEIGHT,
             invalid_weight=cfg.MODEL.INVALID_WEIGHT,
         )

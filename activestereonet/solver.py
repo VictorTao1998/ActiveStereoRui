@@ -7,9 +7,6 @@ Notes:
 
 """
 import torch
-import torch.nn as nn
-from torch.nn.modules.batchnorm import _BatchNorm
-from torch.nn.modules.conv import _ConvNd
 
 _OPTIMIZER_BUILDERS = {}
 
@@ -40,7 +37,7 @@ def group_weight(module, weight_decay):
         exclude = False
         for k in keywords:
             if k in m[0]:
-                print("Weight decay exclude: "+m[0])
+                print("Weight decay exclude: " + m[0])
                 group_no_decay.append(m[1])
                 exclude = True
                 break

@@ -20,7 +20,7 @@ def convbn(in_channel, out_channel, kernel_size, stride, pad, dilation):
 class ResidualBlock(nn.Module):
     def __init__(self, in_channel, dilation=1):
         super(ResidualBlock, self).__init__()
-        self.conv = nn.Sequential(convbn(in_channel, in_channel, 3, 1, 1, dilation), nn.LeakyReLU(0.2, True))
+        self.conv = nn.Sequential(convbn(in_channel, in_channel, 3, 1, 1, dilation), nn.LeakyReLU(0.2, False))
 
     def forward(self, x):
         out = self.conv(x)
@@ -36,7 +36,7 @@ class LeakyConv2d(nn.Module):
         self.conv = nn.Conv2d(in_channel, out_channel, kernel_size, stride=stride, padding=padding, bias=False,
                               **kwargs)
         self.bn = nn.BatchNorm2d(out_channel, momentum=bn_momentum)
-        self.leaky_relu = nn.LeakyReLU(alpha, True)
+        self.leaky_relu = nn.LeakyReLU(alpha, False)
 
         self.init_weights()
 
@@ -59,7 +59,7 @@ class LeakyConv3d(nn.Module):
         self.conv = nn.Conv3d(in_channel, out_channel, kernel_size, stride=stride, padding=padding, bias=False,
                               **kwargs)
         self.bn = nn.BatchNorm3d(out_channel, momentum=bn_momentum)
-        self.leaky_relu = nn.LeakyReLU(alpha, True)
+        self.leaky_relu = nn.LeakyReLU(alpha, False)
 
         self.init_weights()
 
@@ -138,6 +138,10 @@ class DisparityRefinement(nn.Module):
             ResidualBlock(2 * base_channel),
         )
         self.out_conv = nn.Conv2d(2 * base_channel, 1, 3, 1, 1, bias=False)
+        self.init_weight()
+
+    def init_weight(self):
+        nn.init.zeros_(self.out_conv.weight)
 
     def forward(self, disp_map, rgb_map):
         disp_feature = self.disp_conv(disp_map)
@@ -165,7 +169,7 @@ class InvalidationNetwork(nn.Module):
         )
 
         self.refine_conv = nn.Sequential(
-            LeakyConv2d(5, base_channel, 3, 1, 1),
+            LeakyConv2d(3, base_channel, 3, 1, 1),
             ResidualBlock(base_channel),
             ResidualBlock(base_channel),
             ResidualBlock(base_channel),
@@ -173,12 +177,12 @@ class InvalidationNetwork(nn.Module):
             nn.Conv2d(base_channel, 1, 3, 1, 1, bias=False),
         )
 
-    def forward(self, left_tower, right_tower, full_res_disp, rgb_map):
-        assert full_res_disp.shape[2:] == rgb_map.shape[2:]
+    def forward(self, left_tower, right_tower, full_res_disp, left_ir):
+        assert full_res_disp.shape[2:] == left_ir.shape[2:]
         tower = torch.cat([left_tower, right_tower], dim=1)
         coarse_invalid_mask = self.tower_convs(tower)
         upsampled_invalid_mask = F.upsample(coarse_invalid_mask, full_res_disp.shape[2:], mode="bilinear")
-        cat_feature = torch.cat([upsampled_invalid_mask, full_res_disp, rgb_map], dim=1)
+        cat_feature = torch.cat([upsampled_invalid_mask, full_res_disp, left_ir], dim=1)
         invalid_mask_res = self.refine_conv(cat_feature)
         refined_invalid_mask = upsampled_invalid_mask + invalid_mask_res
         refined_invalid_mask = F.sigmoid(refined_invalid_mask)

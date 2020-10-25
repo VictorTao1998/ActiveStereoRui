@@ -15,10 +15,11 @@ from activestereonet.models.loss_functions import Fetch_Module
 class SuLabIndoorActiveSet(Dataset):
     left_img_idx, right_img_idx = 0, 1
 
-    def __init__(self, root_dir, mode, view_list_file, use_mask=False):
+    def __init__(self, root_dir, mode, view_list_file, max_disp, use_mask=False):
         self.root_dir = Path(root_dir)
         self.mode = mode
         self.view_list_file = view_list_file
+        self.max_disp = max_disp
         self.use_mask = use_mask
         self.fetch_module = Fetch_Module()
 
@@ -95,7 +96,7 @@ class SuLabIndoorActiveSet(Dataset):
         # compute baseline_length
         RT_ij = RT_left @ np.linalg.inv(RT_right)
         assert (np.allclose(RT_ij[:3, :3], np.eye(3)))
-        assert (np.sum(RT_ij[1:3, 3]**2) < 1e-6)
+        assert (np.sum(RT_ij[1:3, 3] ** 2) < 1e-6)
         baseline_length = RT_ij[0, 3]
         focal_length = K_left[0, 0]
 
@@ -113,10 +114,14 @@ class SuLabIndoorActiveSet(Dataset):
         data_batch["cam_right"] = torch.tensor(cams[1]).float()
         data_batch["baseline_length"] = torch.tensor(baseline_length).float()
         data_batch["focal_length"] = torch.tensor(focal_length).float()
-        left_disp_map = (baseline_length * focal_length / depths[0]).unsqueeze(0).unsqueeze(0)
-        right_disp_map = (baseline_length * focal_length / depths[1]).unsqueeze(0).unsqueeze(0)
+        left_disp_map = (baseline_length * focal_length / (depths[0] + 1e-7)).unsqueeze(0).unsqueeze(0)
+        right_disp_map = (baseline_length * focal_length / (depths[1] + 1e-7)).unsqueeze(0).unsqueeze(0)
         reproj_disp_map = self.fetch_module(right_disp_map, left_disp_map)
-        data_batch["invalid_mask"] = (torch.abs(left_disp_map[0] - reproj_disp_map[0]) > 1e-3).float()  # 1 for invalid regions
+
+        # occluded, out of FOV, larger than max disp
+        data_batch["invalid_mask"] = (
+                (torch.abs(left_disp_map[0] - reproj_disp_map[0]) > 1e-3) + (reproj_disp_map == 0.0) + (
+                left_disp_map > self.max_disp)).float()[0]  # 1 for invalid regions
 
         data_batch["left_ir"] = torch.tensor(images[0]).float().unsqueeze(0)
         data_batch["right_ir"] = torch.tensor(images[1]).float().unsqueeze(0)
@@ -133,6 +138,7 @@ if __name__ == '__main__':
     dataset = SuLabIndoorActiveSet(
         root_dir="/home/rayc/",
         mode="train",
+        max_disp=144,
         view_list_file="/home/rayc/sulab_active/example.txt"
     )
 

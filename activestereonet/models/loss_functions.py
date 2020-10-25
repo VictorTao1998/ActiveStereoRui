@@ -32,8 +32,10 @@ class Fetch_Module(nn.Module):
         assert disp.shape == right_img.shape
         batch_size, channel, height, width = right_img.shape
 
-        x_grid = torch.linspace(0., width - 1, width).view(1, 1, width, 1).expand((batch_size, height, width, 1))
-        y_grid = torch.linspace(0., height - 1, height).view(1, height, 1, 1).expand((batch_size, height, width, 1))
+        x_grid = torch.linspace(0., width - 1, width, dtype=disp.dtype, device=disp.device)\
+            .view(1, 1, width, 1).expand((batch_size, height, width, 1))
+        y_grid = torch.linspace(0., height - 1, height, dtype=disp.dtype, device=disp.device)\
+            .view(1, height, 1, 1).expand((batch_size, height, width, 1))
 
         x_grid = x_grid - disp.permute(0, 2, 3, 1)
         x_grid = (x_grid - (width - 1) / 2) / (width - 1) * 2
@@ -56,7 +58,7 @@ class Windowed_Matching_Loss(nn.Module):
         self.invalid_weight = invalid_weight
         self.fetch_module = Fetch_Module()
 
-    def forward(self, data_batch, preds):
+    def forward(self, preds, data_batch):
         left_ir, right_ir = data_batch["left_ir"], data_batch["right_ir"]
         batch_size, channel, height, width = left_ir.shape
         assert (channel == 1)
@@ -103,15 +105,18 @@ class Supervision_Loss(nn.Module):
         super(Supervision_Loss, self).__init__()
         self.invalid_weight = invalid_weight
 
-    def forward(self, data_batch, preds):
+    def forward(self, preds, data_batch):
         disp_pred = preds["refined_disp"]
         disp_gt = data_batch["disp_map"]
-        disp_loss = F.l1_loss(disp_pred, disp_gt, reduction="mean")
 
         invalid_mask_pred = preds["invalid_mask"]
-        invalid_mask_gt = data_batch["visibility_mask"]
+        invalid_mask_gt = data_batch["invalid_mask"]
+        valid_mask_gt = 1 - invalid_mask_gt
+
         invalid_loss = -(torch.log(invalid_mask_pred) * invalid_mask_gt + torch.log(1 - invalid_mask_pred) * (
                     1 - invalid_mask_gt)).mean()
+
+        disp_loss = (torch.abs(disp_pred - disp_gt) * valid_mask_gt).sum() / (valid_mask_gt.sum() + 1e-7)
 
         return {
             "disp_loss": disp_loss,

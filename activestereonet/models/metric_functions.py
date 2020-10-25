@@ -18,7 +18,7 @@ class Metric(nn.Module):
         super(Metric, self).__init__()
         self.invalid_threshold_list = invalid_threshold_list
 
-    def forward(self, data_batch, preds):
+    def forward(self, preds, data_batch):
         coarse_disp_pred = preds["coarse_disp"]
         refined_disp_pred = preds["refined_disp"]
         disp_gt = data_batch["disp_map"]

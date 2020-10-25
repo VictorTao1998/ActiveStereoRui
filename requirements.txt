@@ -1,0 +1,7 @@
+GitPython
+open3d-python
+tqdm
+scipy
+path.py
+yacs
+tensorboardX

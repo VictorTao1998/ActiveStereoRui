@@ -7,6 +7,7 @@ import git
 import open3d
 import sys
 from path import Path
+
 sys.path.insert(0, osp.dirname(__file__) + '/..')
 
 import torch
@@ -15,10 +16,10 @@ import torch.nn as nn
 from activestereonet.config import load_cfg_from_file
 from activestereonet.utils.logger import setup_logger
 from activestereonet.utils.torch_utils import set_random_seed
-from activestereonet.models import build_model
+from activestereonet.models.build_model import build_model
 from activestereonet.solver import build_optimizer, build_scheduler
 from activestereonet.utils.checkpoint import Checkpointer
-from activestereonet.data_loader import build_data_loader
+from activestereonet.data_loader.build_data_loader import build_data_loader
 from activestereonet.utils.tensorboard_logger import TensorboardLogger
 from activestereonet.utils.metric_logger import MetricLogger
 from activestereonet.utils.file_logger import file_logger
@@ -80,8 +81,8 @@ def train_model(model,
         preds = model(data_batch, pred_invalid, consistency_check)
         optimizer.zero_grad()
 
-        loss_dict = loss_fn(preds)
-        metric_dict = metric_fn(preds, data_batch)
+        loss_dict = loss_fn(preds=preds, data_batch=data_batch)
+        metric_dict = metric_fn(preds=preds, data_batch=data_batch)
         losses = sum(loss_dict.values())
         meters.update(loss=losses, **loss_dict, **metric_dict)
 
@@ -153,8 +154,8 @@ def validate_model(model,
             data_batch = data_batch_input
 
             preds = model(data_batch, pred_invalid, consistency_check)
-            loss_dict = loss_fn(preds)
-            metric_dict = metric_fn(preds, data_batch)
+            loss_dict = loss_fn(preds=preds, data_batch=data_batch)
+            metric_dict = metric_fn(preds=preds, data_batch=data_batch)
             losses = sum(loss_dict.values())
             meters.update(loss=losses, **loss_dict, **metric_dict)
             batch_time = time.time() - end
@@ -232,7 +233,8 @@ def train(cfg, output_dir=""):
                                    loss_fn,
                                    metric_fn,
                                    pred_invalid=True,
-                                   consistency_check=(cur_epoch > cfg.SCHEDULER.INIT_EPOCH),
+                                   consistency_check=
+                                   (cur_epoch > cfg.SCHEDULER.INIT_EPOCH) and (cfg.MODEL.LOSS_TYPE == "SELF_SUPERVISE"),
                                    data_loader=train_data_loader,
                                    optimizer=optimizer,
                                    curr_epoch=epoch,
@@ -259,7 +261,8 @@ def train(cfg, output_dir=""):
                                         loss_fn,
                                         metric_fn,
                                         pred_invalid=True,
-                                        consistency_check=(cur_epoch > cfg.SCHEDULER.INIT_EPOCH),
+                                        consistency_check=(cur_epoch > cfg.SCHEDULER.INIT_EPOCH) and (
+                                                cfg.MODEL.LOSS_TYPE == "SELF_SUPERVISE"),
                                         data_loader=val_data_loader,
                                         curr_epoch=epoch,
                                         tensorboard_logger=tensorboard_logger,

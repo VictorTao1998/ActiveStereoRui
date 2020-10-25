@@ -21,15 +21,15 @@ def file_logger(data_batch, preds, output_dir, prefix):
     Path(step_dir).makedirs_p()
     print("start saving files in ", step_dir)
 
-    left_ir, right_ir = data_batch["left_ir"][0][0], data_batch["right_ir"][0][0]
+    left_ir, right_ir = data_batch["left_ir"][0][0].cpu().numpy(), data_batch["right_ir"][0][0].cpu().numpy()
     left_ir = (left_ir * 127.5 + 127.5).astype(np.uint8)
     cv2.imwrite(step_dir / "img_0.png", left_ir)
     right_ir = (right_ir * 127.5 + 127.5).astype(np.uint8)
     cv2.imwrite(step_dir / "img_1.png", right_ir)
 
     img_height, img_width = left_ir.shape
-    cam_left, cam_right = data_batch["cam_left"][0].numpy(), data_batch["cam_right"][0].numpy()
-    baseline_length, focal_length = data_batch["baseline_length"][0].numpy(), data_batch["focal_length"][0].numpy()
+    cam_left, cam_right = data_batch["cam_left"][0].cpu().numpy(), data_batch["cam_right"][0].cpu().numpy()
+    baseline_length, focal_length = data_batch["baseline_length"][0].cpu().numpy(), data_batch["focal_length"][0].cpu().numpy()
     RT_left, K_left = cam_left[0], cam_left[1, :3, :3]
     RT_right, K_right = cam_right[0], cam_right[1, :3, :3]
 
@@ -37,13 +37,14 @@ def file_logger(data_batch, preds, output_dir, prefix):
     t = RT_left[:3, 3:4]
     R_inv = np.linalg.inv(R)
 
-    invalid_mask = data_batch["invalid_mask"][0][0]
+    invalid_mask = data_batch["invalid_mask"][0][0].cpu().numpy()
+    cv2.imwrite(step_dir / "gt_invalid_mask.png", (invalid_mask*255.0).astype(np.uint8))
     invalid_mask_bool = invalid_mask.astype(np.bool)
     valid_mask = 1 - invalid_mask
     valid_mask_bool = valid_mask.astype(np.bool)
 
     # process groundtruth
-    gt_disp = data_batch["disp_map"][0][0].numpy()
+    gt_disp = data_batch["disp_map"][0][0].cpu().numpy()
     gt_depth = baseline_length * focal_length / gt_disp
     np.save(step_dir / "gt_depth.npy", gt_depth)
     fig = plt.figure(figsize=(10, 6))
@@ -55,7 +56,9 @@ def file_logger(data_batch, preds, output_dir, prefix):
 
     gt_world_points = depth2pts_np(gt_depth, K_left, RT_left, left_ir)
     p = o3d.geometry.PointCloud()
-    p.points = o3d.utility.Vector3dVector(gt_world_points)
+    p.points = o3d.utility.Vector3dVector(gt_world_points[:, :3])
+    if gt_world_points.shape[1] == 6:
+        p.colors = o3d.utility.Vector3dVector(gt_world_points[:, 3:] / 255.0)
     o3d.geometry.estimate_normals(p)
     o3d.geometry.orient_normals_towards_camera_location(p, np.matmul(R_inv, -t))
     o3d.io.write_point_cloud(step_dir / "gt_points.pcd", p)
@@ -65,7 +68,11 @@ def file_logger(data_batch, preds, output_dir, prefix):
     np.save(step_dir / "gt_normals.npy", gt_normals)
     visualize_normal_map(gt_normals, step_dir / "gt_normals.png")
 
+
     # process prediction
+    if "invalid_mask" in preds.keys():
+        invalid_mask_pred = preds["invalid_mask"][0, 0].detach().cpu().numpy()
+        plt.imsave(step_dir / "pred_invalid_mask.png", invalid_mask_pred, cmap="jet")
     for k in ["upsampled_disp", "refined_disp"]:
         kshort = k[:-5]
         metric = {}
@@ -122,8 +129,8 @@ def file_logger(data_batch, preds, output_dir, prefix):
         metric["<5 deg"] = (np.abs(normal_err) < 5).mean()
         metric["<10 deg"] = (np.abs(normal_err) < 10).mean()
 
-        for k, v in metric.items():
-            metric[k] = str(v)
+        for mk, mv in metric.items():
+            metric[mk] = str(mv)
         json.dump(metric, open(step_dir / f"{kshort}_metric.json", "w"))
 
     print("saving finished.")
