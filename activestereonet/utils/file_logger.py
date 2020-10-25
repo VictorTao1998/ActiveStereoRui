@@ -64,12 +64,14 @@ def file_logger(data_batch, preds, output_dir, prefix):
         p.colors = o3d.utility.Vector3dVector(gt_world_points[:, 3:] / 255.0)
     o3d.geometry.estimate_normals(p)
     o3d.geometry.orient_normals_towards_camera_location(p, np.matmul(R_inv, -t))
-    o3d.io.write_point_cloud(step_dir / "gt_points.pcd", p)
 
     gt_normals = np.array(p.normals).copy()
     gt_normals = gt_normals.reshape(left_ir.shape[0], left_ir.shape[1], 3)
     np.save(step_dir / "gt_normals.npy", gt_normals)
     visualize_normal_map(gt_normals, step_dir / "gt_normals.png")
+
+    p = p.scale(1e-3, False)
+    o3d.io.write_point_cloud(step_dir / "gt_points.pcd", p)
 
 
     # process prediction
@@ -112,11 +114,13 @@ def file_logger(data_batch, preds, output_dir, prefix):
         p.points = o3d.utility.Vector3dVector(pred_world_points)
         o3d.geometry.estimate_normals(p)
         o3d.geometry.orient_normals_towards_camera_location(p, np.matmul(R_inv, -t))
-        o3d.io.write_point_cloud(step_dir / f"{kshort}_points.pcd", p)
 
         normals = np.array(p.normals).copy()
         normals = normals.reshape(left_ir.shape[0], left_ir.shape[1], 3)
         np.save(step_dir / f"{kshort}_normals.npy", normals)
+
+        p = p.scale(1e-3, False)
+        o3d.io.write_point_cloud(step_dir / f"{kshort}_points.pcd", p)
 
         normal_err = np.arccos(np.clip((gt_normals * normals).sum(-1), -1, 1)) * 180 / np.pi
 
