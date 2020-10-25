@@ -119,9 +119,9 @@ class SuLabIndoorActiveSet(Dataset):
         reproj_disp_map = self.fetch_module(right_disp_map, left_disp_map)
 
         # occluded, out of FOV, larger than max disp
-        data_batch["invalid_mask"] = (
+        data_batch["invalid_mask"] = ((
                 (torch.abs(left_disp_map[0] - reproj_disp_map[0]) > 5e-2) + (reproj_disp_map == 0.0) + (
-                left_disp_map > self.max_disp)).float()[0]  # 1 for invalid regions
+                left_disp_map > self.max_disp)) >0.5) .float()[0]  # 1 for invalid regions
         left_disp_map = torch.clamp_max(left_disp_map, self.max_disp)
         data_batch["left_ir"] = torch.tensor(images[0]).float().unsqueeze(0)
         data_batch["right_ir"] = torch.tensor(images[1]).float().unsqueeze(0)
