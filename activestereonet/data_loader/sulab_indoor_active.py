@@ -157,10 +157,10 @@ class SuLabIndoorActiveSet(Dataset):
 
 if __name__ == '__main__':
     dataset = SuLabIndoorActiveSet(
-        root_dir="/home/rayc/",
+        root_dir="/home/xulab/Nautilus/",
         mode="train",
-        max_disp=144,
-        view_list_file="/home/rayc/sulab_active/example.txt"
+        view_list_file="/home/xulab/Nautilus/example.txt",
+        max_disp=136,
     )
 
     print("length", dataset.__len__())

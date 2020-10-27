@@ -232,7 +232,9 @@ def train(cfg, output_dir=""):
         train_meters = train_model(model,
                                    loss_fn,
                                    metric_fn,
-                                   pred_invalid=True,
+                                   pred_invalid=(cfg.MODEL.LOSS_TYPE == "SUPERVISE") or
+                                                ((cur_epoch > cfg.SCHEDULER.INIT_EPOCH) and
+                                                 (cfg.MODEL.LOSS_TYPE == "SELF_SUPERVISE")),
                                    consistency_check=
                                    (cur_epoch > cfg.SCHEDULER.INIT_EPOCH) and (cfg.MODEL.LOSS_TYPE == "SELF_SUPERVISE"),
                                    data_loader=train_data_loader,
@@ -260,7 +262,9 @@ def train(cfg, output_dir=""):
             val_meters = validate_model(model,
                                         loss_fn,
                                         metric_fn,
-                                        pred_invalid=True,
+                                        pred_invalid=(cfg.MODEL.LOSS_TYPE == "SUPERVISE") or
+                                                     ((cur_epoch > cfg.SCHEDULER.INIT_EPOCH) and
+                                                      (cfg.MODEL.LOSS_TYPE == "SELF_SUPERVISE")),
                                         consistency_check=(cur_epoch > cfg.SCHEDULER.INIT_EPOCH) and (
                                                 cfg.MODEL.LOSS_TYPE == "SELF_SUPERVISE"),
                                         data_loader=val_data_loader,

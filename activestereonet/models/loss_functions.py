@@ -79,10 +79,12 @@ class Windowed_Matching_Loss(nn.Module):
             C = (C * wxy).sum(1) / (wxy.sum(1))
 
         losses = {}
-        if "invalid_mask" in preds.keys():
+        losses["C"] = C
+        if "invalid_mask" in preds.keys() and "right_disp" in preds.keys():
             invalid_mask = preds["invalid_mask"]
             invalid_reg_loss = (- torch.log(1 - invalid_mask)).mean()
             losses["invalid_reg_loss"] = invalid_reg_loss * self.invalid_reg_weight
+            C = C.view(left_std.shape)
             rec_loss = (C * (1 - invalid_mask)).mean()
             losses["rec_loss"] = rec_loss
 
@@ -120,9 +122,9 @@ class Supervision_Loss(nn.Module):
                 1 - invalid_mask_gt)).mean()
 
         refined_disp_loss = (torch.abs(refined_disp_pred - disp_gt) * valid_mask_gt).sum() / (
-                    valid_mask_gt.sum() + 1e-7)
+                valid_mask_gt.sum() + 1e-7)
         coarse_disp_loss = (torch.abs(coarse_disp_pred - coarse_disp_gt) * coarse_valid_mask_gt).sum() / (
-                    coarse_valid_mask_gt.sum() + 1e-7)
+                coarse_valid_mask_gt.sum() + 1e-7)
 
         return {
             "coarse_disp_loss": coarse_disp_loss,
@@ -161,4 +163,68 @@ def test_fetch():
 
 if __name__ == '__main__':
     # test_lcn("/media/rayc/文档/我的坚果云/SU Lab/sofa_0/coded_light/0.png")
-    test_fetch()
+    # test_fetch()
+    import numpy as np
+    from tqdm import tqdm
+    from activestereonet.data_loader.sulab_indoor_active import SuLabIndoorActiveSet
+
+    max_disp = 136
+    dataset = SuLabIndoorActiveSet(
+        root_dir="/home/xulab/Nautilus/",
+        mode="train",
+        max_disp=max_disp,
+        view_list_file="/home/xulab/Nautilus/example.txt"
+    )
+
+    data_batch = {}
+    for k, v in dataset[3].items():
+        if isinstance(v, torch.Tensor):
+            data_batch[k] = v.unsqueeze(0).cuda()
+        else:
+            data_batch[k] = v
+    loss_func = Windowed_Matching_Loss(window_size=21)
+    preds = {"refined_disp": data_batch["disp_map"]}
+    loss_dict = loss_func(preds=preds, data_batch=data_batch)
+    # for k, v in loss_dict.items():
+    #     print(k, v)
+
+    # visualize matching cost along one row
+    gt_disp = data_batch["disp_map"][0, 0].cpu().numpy()
+    height, width = gt_disp.shape
+
+    import matplotlib.pyplot as plt
+    plt.imshow(gt_disp)
+    plt.colorbar()
+    plt.show()
+
+    C_dict = {}
+    C_dict["gt"] = loss_dict["C"].cpu().numpy().reshape((height, width))
+    for disp in tqdm(np.arange(0, max_disp, 4)):
+        disp = float(disp)
+        preds = {"refined_disp": torch.ones((1, 1, height, width)).float().cuda() * disp}
+        loss_dict = loss_func(preds=preds, data_batch=data_batch)
+        C_dict[disp] = loss_dict["C"].cpu().numpy().reshape((height, width))
+
+    for k, v in C_dict.items():
+        print(k, v.shape)
+
+    # chosen_row_idx = (100, 200, 300, 400, 500)
+    # for row_idx in chosen_row_idx:
+    #     plt.plot()
+
+    # gt_disp_loss = {}
+    # rand_disp_loss = {}
+    #
+    # for window_size in tqdm(np.arange(5, 27, 2)):
+    #     window_size = int(window_size)
+    #     loss_func = Windowed_Matching_Loss(window_size=window_size)
+    #     preds = {"refined_disp": data_batch["disp_map"]}
+    #     loss_dict = loss_func(preds=preds, data_batch=data_batch)
+    #     gt_disp_loss[window_size] = loss_dict["rec_loss"].cpu().numpy()
+    #     preds = {"refined_disp": torch.rand((1, 1, 600, 800)).float().cuda() * max_disp}
+    #     loss_dict = loss_func(preds=preds, data_batch=data_batch)
+    #     rand_disp_loss[window_size] = loss_dict["rec_loss"].cpu().numpy()
+    #
+    # for k in sorted(gt_disp_loss.keys()):
+    #     print(k, "gt: {:.4f}, rand: {:.4f}".format(gt_disp_loss[k], rand_disp_loss[k]))
+
