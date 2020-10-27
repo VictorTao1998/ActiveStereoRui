@@ -62,12 +62,12 @@ class SuLabIndoorActiveSet(Dataset):
                     continue
                 cams = []
                 for view in range(2):
-                    cam = io.load_cam_indoor(paths["view_cam_paths"][view])
+                    cam = io.load_cam_indoor(view_cam_paths[view])
                     cams.append(cam)
                 RT_left, K_left = cams[0][0], cams[0][1, :3, :3]
                 RT_right, K_right = cams[1][0], cams[1][1, :3, :3]
                 if not (np.allclose(K_left, K_right)):
-                    print("np.allclose(K_left, K_right)", K_left, K_right, paths["view_cam_paths"][0])
+                    print("np.allclose(K_left, K_right)", K_left, K_right, view_cam_paths[0])
                     continue
 
                 # compute baseline_length
@@ -78,7 +78,7 @@ class SuLabIndoorActiveSet(Dataset):
                     continue
 
                 if not (np.sum(RT_ij[1:3, 3] ** 2) < 2e-2):
-                    print("{} {}".format(paths["view_cam_paths"][0], RT_ij[:3, 3]))
+                    print("{} {}".format(view_cam_paths[0], RT_ij[:3, 3]))
                     continue
 
                 paths["view_image_paths"] = view_image_paths
