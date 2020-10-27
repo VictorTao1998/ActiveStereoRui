@@ -169,11 +169,18 @@ if __name__ == '__main__':
     from activestereonet.data_loader.sulab_indoor_active import SuLabIndoorActiveSet
 
     max_disp = 136
+    # dataset = SuLabIndoorActiveSet(
+    #     root_dir="/home/xulab/Nautilus/",
+    #     mode="train",
+    #     max_disp=max_disp,
+    #     view_list_file="/home/xulab/Nautilus/example.txt"
+    # )
+
     dataset = SuLabIndoorActiveSet(
-        root_dir="/home/xulab/Nautilus/",
+        root_dir="/home/rayc",
         mode="train",
         max_disp=max_disp,
-        view_list_file="/home/xulab/Nautilus/example.txt"
+        view_list_file="/home/rayc/sulab_active/example.txt"
     )
 
     data_batch = {}
@@ -182,7 +189,7 @@ if __name__ == '__main__':
             data_batch[k] = v.unsqueeze(0).cuda()
         else:
             data_batch[k] = v
-    loss_func = Windowed_Matching_Loss(window_size=21)
+    loss_func = Windowed_Matching_Loss(window_size=25)
     preds = {"refined_disp": data_batch["disp_map"]}
     loss_dict = loss_func(preds=preds, data_batch=data_batch)
     # for k, v in loss_dict.items():
@@ -193,24 +200,71 @@ if __name__ == '__main__':
     height, width = gt_disp.shape
 
     import matplotlib.pyplot as plt
-    plt.imshow(gt_disp)
-    plt.colorbar()
-    plt.show()
+
+    left_ir, right_ir = data_batch["left_ir"], data_batch["right_ir"]
+    lcn_left_ir, left_std = local_contrast_norm(left_ir, loss_func.lcn_kernel_size)
+    lcn_right_ir, _ = local_contrast_norm(right_ir, loss_func.lcn_kernel_size)
+    lcn_left_ir = lcn_left_ir.cpu().numpy()[0, 0]
+    lcn_right_ir = lcn_right_ir.cpu().numpy()[0, 0]
 
     C_dict = {}
     C_dict["gt"] = loss_dict["C"].cpu().numpy().reshape((height, width))
-    for disp in tqdm(np.arange(0, max_disp, 4)):
+    disp_array = []
+    for disp in tqdm(np.arange(0, max_disp, 2)):
         disp = float(disp)
+        disp_array.append(disp)
         preds = {"refined_disp": torch.ones((1, 1, height, width)).float().cuda() * disp}
         loss_dict = loss_func(preds=preds, data_batch=data_batch)
         C_dict[disp] = loss_dict["C"].cpu().numpy().reshape((height, width))
 
-    for k, v in C_dict.items():
-        print(k, v.shape)
+    # for k, v in C_dict.items():
+    #     print(k, v.shape)
+    disp_array = np.array(disp_array)
+    chosen_row_idx = (100, 200, 300, 400, 500)
+    chosen_col = 100
 
-    # chosen_row_idx = (100, 200, 300, 400, 500)
-    # for row_idx in chosen_row_idx:
-    #     plt.plot()
+    fig, axs = plt.subplots(nrows=2, ncols=2, constrained_layout=True)
+    gt_disp_vis = gt_disp.copy()
+    for row_idx in chosen_row_idx:
+        gt_disp_vis[row_idx, :] = 300
+    gt_disp_vis[:, chosen_col] = 300
+    ax = axs[0, 0]
+    ax.imshow(gt_disp_vis)
+    ax.scatter((chosen_col,)*len(chosen_row_idx), chosen_row_idx, marker='^', c='r', s=5)
+    ax.set_title("GT disp")
+    # plt.colorbar()
+    # plt.show()
+
+    ax = axs[0, 1]
+    ax.set_title("LCN Left IR")
+    ax.imshow(lcn_left_ir)
+    ax.scatter((chosen_col,)*len(chosen_row_idx), chosen_row_idx, marker='^', c='r', s=5)
+
+
+    ax = axs[1, 1]
+    gt_disp_dict = {}
+    min_disp_dict = {}
+    for row_idx in chosen_row_idx:
+        matching_cost = []
+        for disp in disp_array:
+            matching_cost.append(C_dict[disp][row_idx, chosen_col])
+        matching_cost = np.array(matching_cost)
+        ax.plot(disp_array, matching_cost, label=f"{row_idx}")
+        gt_disp_dict[row_idx] = gt_disp[row_idx, chosen_col]
+        min_disp_dict[row_idx] = disp_array[matching_cost.argmin()]
+
+    ax = axs[1, 0]
+    ax.set_title("LCN right IR")
+    ax.imshow(lcn_right_ir)
+    for row_idx in chosen_row_idx:
+        ax.scatter(chosen_col-gt_disp_dict[row_idx], row_idx, marker='*', c='r', s=10)
+        ax.scatter(chosen_col-min_disp_dict[row_idx], row_idx, marker='s', c='b', s=5)
+
+    for k, v in gt_disp_dict.items():
+        print(k, "gt: ", v, "min: ", min_disp_dict[k])
+
+    plt.legend()
+    plt.show()
 
     # gt_disp_loss = {}
     # rand_disp_loss = {}
