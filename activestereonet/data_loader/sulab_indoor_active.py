@@ -74,7 +74,7 @@ class SuLabIndoorActiveSet(Dataset):
                 RT_ij = RT_left @ np.linalg.inv(RT_right)
                 if not (np.allclose(RT_ij[:3, :3], np.eye(3))):
                     print("RT_ij[:3, :3]", RT_ij[:3, :3])
-                    print(paths["view_cam_paths"][0])
+                    print(view_cam_paths[0])
                     continue
 
                 if not (np.sum(RT_ij[1:3, 3] ** 2) < 2e-2):
