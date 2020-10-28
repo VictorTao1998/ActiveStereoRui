@@ -79,7 +79,7 @@ class Windowed_Matching_Loss(nn.Module):
             C = (C * wxy).sum(1) / (wxy.sum(1))
 
         losses = {}
-        losses["C"] = C
+        # losses["C"] = C
         if "invalid_mask" in preds.keys() and "right_disp" in preds.keys():
             invalid_mask = preds["invalid_mask"]
             invalid_reg_loss = (- torch.log(1 - invalid_mask)).mean()
@@ -169,22 +169,22 @@ if __name__ == '__main__':
     from activestereonet.data_loader.sulab_indoor_active import SuLabIndoorActiveSet
 
     max_disp = 136
-    # dataset = SuLabIndoorActiveSet(
-    #     root_dir="/home/xulab/Nautilus/",
-    #     mode="train",
-    #     max_disp=max_disp,
-    #     view_list_file="/home/xulab/Nautilus/example.txt"
-    # )
-
     dataset = SuLabIndoorActiveSet(
-        root_dir="/home/rayc",
+        root_dir="/home/xulab/Nautilus/",
         mode="train",
         max_disp=max_disp,
-        view_list_file="/home/rayc/sulab_active/example.txt"
+        view_list_file="/home/xulab/Nautilus/example.txt"
     )
 
+    # dataset = SuLabIndoorActiveSet(
+    #     root_dir="/home/rayc",
+    #     mode="train",
+    #     max_disp=max_disp,
+    #     view_list_file="/home/rayc/sulab_active/example.txt"
+    # )
+
     data_batch = {}
-    for k, v in dataset[3].items():
+    for k, v in dataset[1].items():
         if isinstance(v, torch.Tensor):
             data_batch[k] = v.unsqueeze(0).cuda()
         else:
@@ -221,9 +221,9 @@ if __name__ == '__main__':
     #     print(k, v.shape)
     disp_array = np.array(disp_array)
     chosen_row_idx = (100, 200, 300, 400, 500)
-    chosen_col = 100
+    chosen_col = 400
 
-    fig, axs = plt.subplots(nrows=2, ncols=2, constrained_layout=True)
+    fig, axs = plt.subplots(nrows=2, ncols=2, constrained_layout=True, figsize=(20, 16))
     gt_disp_vis = gt_disp.copy()
     for row_idx in chosen_row_idx:
         gt_disp_vis[row_idx, :] = 300
