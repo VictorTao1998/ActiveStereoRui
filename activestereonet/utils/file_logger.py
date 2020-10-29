@@ -43,6 +43,10 @@ def file_logger(data_batch, preds, output_dir, prefix):
     valid_mask = 1 - invalid_mask
     valid_mask_bool = valid_mask.astype(np.bool)
 
+    object_mask = data_batch["object_mask"][0][0].cpu().numpy()
+    cv2.imwrite(step_dir / "valid_object_mask.png", (object_mask*255.0).astype(np.uint8))
+    object_mask_bool = object_mask.astype(np.bool)
+
     # process groundtruth
     gt_disp = data_batch["disp_map"][0][0].cpu().numpy()
     gt_depth = baseline_length * focal_length / gt_disp
@@ -101,6 +105,13 @@ def file_logger(data_batch, preds, output_dir, prefix):
         metric["<10 mm"] = np.logical_and(np.abs(err) < 10, valid_mask_bool).sum() * 100.0 / valid_mask_bool.sum()
         metric["<30 mm"] = np.logical_and(np.abs(err) < 30, valid_mask_bool).sum() * 100.0 / valid_mask_bool.sum()
         metric["<50 mm"] = np.logical_and(np.abs(err) < 50, valid_mask_bool).sum() * 100.0 / valid_mask_bool.sum()
+        obj_err = err[object_mask_bool]
+        metric["obj mean L1"] = np.abs(obj_err).mean()
+        metric["obj max L1"] = obj_err.max()
+        metric["obj min L1"] = obj_err.min()
+        metric["obj <10 mm"] = (np.abs(obj_err) < 10).mean() * 100.0
+        metric["obj <30 mm"] = (np.abs(obj_err) < 30).mean() * 100.0
+        metric["obj <50 mm"] = (np.abs(obj_err) < 50).mean() * 100.0
 
         fig = plt.figure(figsize=(10, 6))
         plt.subplots_adjust(left=0.05, right=0.85, top=0.95, bottom=0.05)
@@ -137,8 +148,13 @@ def file_logger(data_batch, preds, output_dir, prefix):
         metric["<5 deg"] = np.logical_and(np.abs(normal_err) < 5, valid_mask_bool).sum() * 100.0 / valid_mask_bool.sum()
         metric["<10 deg"] = np.logical_and(np.abs(normal_err) < 10, valid_mask_bool).sum() * 100.0 / valid_mask_bool.sum()
 
+        obj_normal_err = normal_err[object_mask_bool]
+        metric["obj mean norm err"] = np.abs(obj_normal_err).mean()
+        metric["obj <5 deg"] = (np.abs(obj_normal_err) < 5).mean() * 100.0
+        metric["obj <10 deg"] = (np.abs(obj_normal_err) < 10).mean() * 100.0
+
         for mk, mv in metric.items():
-            metric[mk] = str(mv)
+            metric[mk] = "{:.2f}".format(mv)
         json.dump(metric, open(step_dir / f"{kshort}_metric.json", "w"))
 
     print("saving finished.")

@@ -86,6 +86,7 @@ class Windowed_Matching_Loss(nn.Module):
             losses["invalid_reg_loss"] = invalid_reg_loss * self.invalid_reg_weight
             C = C.view(left_std.shape)
             rec_loss = (C * (1 - invalid_mask)).mean()
+            # rec_loss = C.mean()
             losses["rec_loss"] = rec_loss
 
             right_disp = preds["right_disp"]

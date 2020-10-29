@@ -18,11 +18,11 @@ from activestereonet.models import build_model
 from activestereonet.utils.checkpoint import Checkpointer
 from activestereonet.data_loader import build_data_loader
 from activestereonet.utils.metric_logger import MetricLogger
-from activestereonet.utils.eval_file_logger import eval_file_logger
+from activestereonet.utils.file_logger import file_logger
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="PyTorch Point-MVSNet Evaluation")
+    parser = argparse.ArgumentParser(description="PyTorch ActiveStereoNet Evaluation")
     parser.add_argument(
         "--cfg",
         dest="config_file",
@@ -30,12 +30,6 @@ def parse_args():
         metavar="FILE",
         help="path to config file",
         type=str,
-    )
-    parser.add_argument(
-        "--cpu",
-        action='store_true',
-        default=False,
-        help="whether to only use cpu for test",
     )
     parser.add_argument(
         "opts",
@@ -49,66 +43,65 @@ def parse_args():
 
 
 def test_model(model,
-               image_scales,
-               inter_scales,
+               loss_fn,
+               metric_fn,
+               pred_invalid,
+               consistency_check,
                data_loader,
-               folder,
-               isCPU=False,
+               log_period=1,
+               output_dir="",
                ):
     logger = logging.getLogger("activestereonet.test")
     meters = MetricLogger(delimiter="  ")
-    model.train()
+    # model.train()
+    model.eval()
     end = time.time()
-    total_iteration = data_loader.__len__()
-    path_list = []
-    with torch.no_grad():
-        for iteration, data_batch in enumerate(data_loader):
-            data_time = time.time() - end
-            curr_ref_img_path = data_batch["ref_img_path"][0]
-            l = curr_ref_img_path.split("/")
-            if "dtu" in curr_ref_img_path:
-                eval_folder = "/".join(l[:-3])
-                scene = l[-2]
-                scene_folder = osp.join(eval_folder, folder, scene)
-                out_index = int(l[-1][5:8]) - 1
-            elif "tanks" in curr_ref_img_path:
-                eval_folder = "/".join(l[:-3])
-                scene = l[-3]
-                scene_folder = osp.join(eval_folder, folder, scene)
-                out_index = int(l[-1][0:8])
-            # out_ref_image_path = scene_folder + ('/%08d.jpg' % out_index)
-            # if osp.exists(out_ref_image_path):
-            #     print("{} exists".format(out_ref_image_path))
-            #     continue
-            out_flow_path = scene_folder + ("/%08d_flow1.pfm" % out_index)
-            out_flow_prob_path = scene_folder + ("/%08d_flow1_prob.pfm" % out_index)
-            if osp.exists(out_flow_path) and osp.exists(out_flow_prob_path):
-                print("{} exits".format(out_flow_path))
-                continue
 
-            path_list.extend(curr_ref_img_path)
-            if not isCPU:
-                data_batch = {k: v.cuda(non_blocking=True) for k, v in data_batch.items() if
-                              isinstance(v, torch.Tensor)}
-            preds = model(data_batch, image_scales, inter_scales, use_occ_pred=True, isFlow=True, isTest=True)
+    iteration = 0
+    with torch.no_grad():
+        for data_batch in data_loader:
+            iteration += 1
+            data_time = time.time() - end
+            data_batch_input = {}
+            for k, v in data_batch.items():
+                if isinstance(v, torch.Tensor):
+                    data_batch_input[k] = v.cuda(non_blocking=True)
+                else:
+                    data_batch_input[k] = v
+            data_batch = data_batch_input
+
+            preds = model(data_batch, pred_invalid, consistency_check)
+            loss_dict = loss_fn(preds=preds, data_batch=data_batch)
+            metric_dict = metric_fn(preds=preds, data_batch=data_batch)
+            losses = sum(loss_dict.values())
+            meters.update(loss=losses, **loss_dict, **metric_dict)
 
             batch_time = time.time() - end
             end = time.time()
             meters.update(time=batch_time, data=data_time)
-            logger.info(
-                "{} finished.".format(curr_ref_img_path) + str(meters))
-            eval_file_logger(data_batch, preds, curr_ref_img_path, folder)
-            del data_batch
-            del preds
-            torch.cuda.empty_cache()
+
+            if iteration % log_period == 0:
+                logger.info(
+                    meters.delimiter.join(
+                        [
+                            "iter: {iter:4d}",
+                            "{meters}",
+                            "max mem: {memory:.0f}",
+                        ]
+                    ).format(
+                        iter=iteration,
+                        meters=str(meters),
+                        memory=torch.cuda.max_memory_allocated() / (1024.0 ** 2),
+                    )
+                )
+
+            file_logger(data_batch, preds, output_dir, prefix="test")
 
 
-def test(cfg, output_dir, isCPU=False):
+def test(cfg, output_dir):
     logger = logging.getLogger("activestereonet.tester")
     # build model
-    model, _, _ = build_model(cfg)
-    if not isCPU:
-        model = nn.DataParallel(model).cuda()
+    model, loss_func, metric_func = build_model(cfg)
 
     # build checkpointer
     checkpointer = Checkpointer(model, save_dir=output_dir)
@@ -123,11 +116,13 @@ def test(cfg, output_dir, isCPU=False):
     test_data_loader = build_data_loader(cfg, mode="test")
     start_time = time.time()
     test_model(model,
-               image_scales=cfg.MODEL.TEST.IMG_SCALES,
-               inter_scales=cfg.MODEL.TEST.INTER_SCALES,
+               loss_func,
+               metric_func,
+               pred_invalid=True,
+               consistency_check=False,
                data_loader=test_data_loader,
-               folder=output_dir.split("/")[-1],
-               isCPU=isCPU,
+               log_period=cfg.TEST.LOG_PERIOD,
+               output_dir=output_dir,
                )
     test_time = time.time() - start_time
     logger.info("Test forward time: {:.2f}s".format(test_time))
@@ -145,8 +140,6 @@ def main():
     cfg.freeze()
     assert cfg.TEST.BATCH_SIZE == 1
 
-    isCPU = args.cpu
-
     output_dir = cfg.OUTPUT_DIR
     if output_dir:
         config_path = osp.splitext(args.config_file)[0]
@@ -162,16 +155,13 @@ def main():
     except:
         logger.info("No git info")
 
-    if isCPU:
-        logger.info("Using CPU")
-    else:
-        logger.info("Using {} GPUs".format(num_gpus))
+    logger.info("Using {} GPUs".format(num_gpus))
     logger.info(args)
 
     logger.info("Loaded configuration file {}".format(args.config_file))
     logger.info("Running with config:\n{}".format(cfg))
 
-    test(cfg, output_dir, isCPU=isCPU)
+    test(cfg, output_dir)
 
 
 if __name__ == "__main__":

@@ -48,11 +48,10 @@ class SuLabIndoorActiveSet(Dataset):
                     image_path = frame_view_dir / "coded_light" / "{}.png".format(view_idx)
                     cam_path = frame_view_dir / "cams" / "{}.txt".format(view_idx)
                     depth_path = frame_view_dir / "depth" / "{}.npy".format(view_idx)
-                    if self.use_mask:
-                        mask_path = frame_view_dir / "masks" / "{}.png".format(view_idx)
-                        if not mask_path.exists():
-                            continue
-                        view_mask_paths.append(mask_path)
+                    mask_path = frame_view_dir / "masks" / "{}.png".format(view_idx)
+                    if not mask_path.exists():
+                        continue
+                    view_mask_paths.append(mask_path)
                     if not (image_path.exists() and cam_path.exists() and depth_path.exists()):
                         continue
                     view_image_paths.append(image_path)
@@ -110,6 +109,9 @@ class SuLabIndoorActiveSet(Dataset):
             cams.append(cam)
             depths.append(depth)
 
+        obj_mask = cv2.imread(paths["view_mask_paths"][0], 0)
+        obj_mask = (torch.tensor(obj_mask).unsqueeze(0) > 127).float()
+
         RT_left, K_left = cams[0][0], cams[0][1, :3, :3]
         RT_right, K_right = cams[1][0], cams[1][1, :3, :3]
         assert (np.allclose(K_left, K_right)), paths["view_cam_paths"][0]
@@ -143,6 +145,7 @@ class SuLabIndoorActiveSet(Dataset):
         data_batch["invalid_mask"] = ((
                 (torch.abs(left_disp_map[0] - reproj_disp_map[0]) > 5e-2) + (reproj_disp_map == 0.0) + (
                 left_disp_map > self.max_disp)) >0.5) .float()[0]  # 1 for invalid regions
+        data_batch["object_mask"] = ((obj_mask - data_batch["invalid_mask"]) > 0.5).float()
         left_disp_map = torch.clamp_max(left_disp_map, self.max_disp)
         data_batch["left_ir"] = torch.tensor(images[0]).float().unsqueeze(0)
         data_batch["right_ir"] = torch.tensor(images[1]).float().unsqueeze(0)
