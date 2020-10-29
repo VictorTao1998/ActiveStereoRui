@@ -153,8 +153,8 @@ def file_logger(data_batch, preds, output_dir, prefix):
         visualize_normal_map(normals, step_dir / f"{kshort}_normals.png")
         valid_normal_err = normal_err[valid_mask_bool]
         metric["val mean norm err"] = np.abs(valid_normal_err).mean()
-        metric["val <5 deg"] = (np.abs(valid_normal_err) < 5).mean()
-        metric["val <10 deg"] = (np.abs(valid_normal_err) < 10).mean()
+        metric["val <5 deg"] = (np.abs(valid_normal_err) < 5).mean() * 100.0
+        metric["val <10 deg"] = (np.abs(valid_normal_err) < 10).mean() * 100.0
 
         obj_normal_err = normal_err[object_mask_bool]
         metric["obj mean norm err"] = np.abs(obj_normal_err).mean()
@@ -163,8 +163,8 @@ def file_logger(data_batch, preds, output_dir, prefix):
 
         inv_normal_err = normal_err[invalid_mask_bool]
         metric["inv mean norm err"] = np.abs(inv_normal_err).mean()
-        metric["inv <5 deg"] = (np.abs(inv_normal_err) < 5).mean()
-        metric["inv <10 deg"] = (np.abs(inv_normal_err) < 10).mean()
+        metric["inv <5 deg"] = (np.abs(inv_normal_err) < 5).mean() * 100.0
+        metric["inv <10 deg"] = (np.abs(inv_normal_err) < 10).mean() * 100.0
 
         for mk, mv in metric.items():
             metric[mk] = "{:.2f}".format(mv)
