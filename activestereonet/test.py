@@ -5,6 +5,7 @@ import logging
 import time
 import git
 import sys
+import open3d
 from path import Path
 
 sys.path.insert(0, osp.dirname(__file__) + '/..')
