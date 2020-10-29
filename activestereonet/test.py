@@ -15,9 +15,9 @@ import torch.nn as nn
 
 from activestereonet.config import load_cfg_from_file
 from activestereonet.utils.logger import setup_logger
-from activestereonet.models import build_model
+from activestereonet.models.build_model import build_model
 from activestereonet.utils.checkpoint import Checkpointer
-from activestereonet.data_loader import build_data_loader
+from activestereonet.data_loader.build_data_loader import build_data_loader
 from activestereonet.utils.metric_logger import MetricLogger
 from activestereonet.utils.file_logger import file_logger
 
@@ -103,6 +103,7 @@ def test(cfg, output_dir):
     logger = logging.getLogger("activestereonet.tester")
     # build model
     model, loss_func, metric_func = build_model(cfg)
+    model = nn.DataParallel(model).cuda()
 
     # build checkpointer
     checkpointer = Checkpointer(model, save_dir=output_dir)
