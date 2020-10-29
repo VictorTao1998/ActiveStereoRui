@@ -11,13 +11,19 @@ import matplotlib.pyplot as plt
 import open3d as o3d
 
 
-def file_logger(data_batch, preds, output_dir, prefix):
+def file_logger(data_batch, preds, output_dir, prefix, skip_exist=False):
     # only save the first object in the batch
     ref_image_path = data_batch["image_path"][0]
     output_dir = Path(output_dir)
     l = ref_image_path.split("/")
     category, scene, frame_view = l[-5:-2]
     step_dir = output_dir / prefix / category / scene / frame_view
+    if step_dir.exists():
+        if skip_exist:
+            print("Skip ", step_dir)
+            return
+        else:
+            print("Overwrite ", step_dir)
     Path(step_dir).makedirs_p()
     print("start saving files in ", step_dir)
 

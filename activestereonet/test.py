@@ -33,6 +33,12 @@ def parse_args():
         type=str,
     )
     parser.add_argument(
+        "--skip_exist",
+        action='store_true',
+        default=False,
+        help="skip existing results",
+    )
+    parser.add_argument(
         "opts",
         help="Modify config options using the command-line",
         default=None,
@@ -96,7 +102,7 @@ def test_model(model,
                     )
                 )
 
-            file_logger(data_batch, preds, output_dir, prefix="test")
+            file_logger(data_batch, preds, output_dir, prefix="test", skip_exist=SKIP_EXIST)
 
 
 def test(cfg, output_dir):
@@ -133,6 +139,8 @@ def test(cfg, output_dir):
 def main():
     args = parse_args()
     num_gpus = torch.cuda.device_count()
+    global SKIP_EXIST
+    SKIP_EXIST = args.skip_exist
 
     if len(args.opts) == 1:
         args.opts = args.opts[0].strip().split(" ")
