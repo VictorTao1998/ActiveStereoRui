@@ -29,7 +29,8 @@ def file_logger(data_batch, preds, output_dir, prefix):
 
     img_height, img_width = left_ir.shape
     cam_left, cam_right = data_batch["cam_left"][0].cpu().numpy(), data_batch["cam_right"][0].cpu().numpy()
-    baseline_length, focal_length = data_batch["baseline_length"][0].cpu().numpy(), data_batch["focal_length"][0].cpu().numpy()
+    baseline_length, focal_length = data_batch["baseline_length"][0].cpu().numpy(), data_batch["focal_length"][
+        0].cpu().numpy()
     RT_left, K_left = cam_left[0], cam_left[1, :3, :3]
     RT_right, K_right = cam_right[0], cam_right[1, :3, :3]
 
@@ -38,13 +39,13 @@ def file_logger(data_batch, preds, output_dir, prefix):
     R_inv = np.linalg.inv(R)
 
     invalid_mask = data_batch["invalid_mask"][0][0].cpu().numpy()
-    cv2.imwrite(step_dir / "gt_invalid_mask.png", (invalid_mask*255.0).astype(np.uint8))
+    cv2.imwrite(step_dir / "gt_invalid_mask.png", (invalid_mask * 255.0).astype(np.uint8))
     invalid_mask_bool = invalid_mask.astype(np.bool)
     valid_mask = 1 - invalid_mask
     valid_mask_bool = valid_mask.astype(np.bool)
 
     object_mask = data_batch["object_mask"][0][0].cpu().numpy()
-    cv2.imwrite(step_dir / "valid_object_mask.png", (object_mask*255.0).astype(np.uint8))
+    cv2.imwrite(step_dir / "valid_object_mask.png", (object_mask * 255.0).astype(np.uint8))
     object_mask_bool = object_mask.astype(np.bool)
 
     # process groundtruth
@@ -77,7 +78,6 @@ def file_logger(data_batch, preds, output_dir, prefix):
     p = p.scale(1e-3, False)
     o3d.io.write_point_cloud(step_dir / "gt_points.pcd", p)
 
-
     # process prediction
     if "invalid_mask" in preds.keys():
         invalid_mask_pred = preds["invalid_mask"][0, 0].detach().cpu().numpy()
@@ -98,13 +98,13 @@ def file_logger(data_batch, preds, output_dir, prefix):
         plt.savefig(step_dir / f"{kshort}_depth.png")
 
         err = depth - gt_depth
-        err[invalid_mask_bool] = 0.0
-        metric["mean L1"] = np.abs(err).sum() / valid_mask_bool.sum()
-        metric["max L1"] = err.max()
-        metric["min L1"] = err.min()
-        metric["<10 mm"] = np.logical_and(np.abs(err) < 10, valid_mask_bool).sum() * 100.0 / valid_mask_bool.sum()
-        metric["<30 mm"] = np.logical_and(np.abs(err) < 30, valid_mask_bool).sum() * 100.0 / valid_mask_bool.sum()
-        metric["<50 mm"] = np.logical_and(np.abs(err) < 50, valid_mask_bool).sum() * 100.0 / valid_mask_bool.sum()
+        valid_err = err[valid_mask_bool]
+        metric["val mean L1"] = np.abs(valid_err).mean()
+        metric["val max L1"] = valid_err.max()
+        metric["val min L1"] = valid_err.min()
+        metric["val <10 mm"] = (np.abs(valid_err) < 10).mean() * 100.0
+        metric["val <30 mm"] = (np.abs(valid_err) < 30).mean() * 100.0
+        metric["val <50 mm"] = (np.abs(valid_err) < 50).mean() * 100.0
         obj_err = err[object_mask_bool]
         metric["obj mean L1"] = np.abs(obj_err).mean()
         metric["obj max L1"] = obj_err.max()
@@ -112,6 +112,14 @@ def file_logger(data_batch, preds, output_dir, prefix):
         metric["obj <10 mm"] = (np.abs(obj_err) < 10).mean() * 100.0
         metric["obj <30 mm"] = (np.abs(obj_err) < 30).mean() * 100.0
         metric["obj <50 mm"] = (np.abs(obj_err) < 50).mean() * 100.0
+
+        inv_err = err[invalid_mask_bool]
+        metric["inv mean L1"] = np.abs(inv_err).mean()
+        metric["inv max L1"] = inv_err.max()
+        metric["inv min L1"] = inv_err.min()
+        metric["inv <10 mm"] = (np.abs(inv_err) < 10).mean() * 100.0
+        metric["inv <30 mm"] = (np.abs(inv_err) < 30).mean() * 100.0
+        metric["inv <50 mm"] = (np.abs(inv_err) < 50).mean() * 100.0
 
         fig = plt.figure(figsize=(10, 6))
         plt.subplots_adjust(left=0.05, right=0.85, top=0.95, bottom=0.05)
@@ -133,7 +141,7 @@ def file_logger(data_batch, preds, output_dir, prefix):
         p = p.scale(1e-3, False)
         o3d.io.write_point_cloud(step_dir / f"{kshort}_points.pcd", p)
 
-        normal_err = np.arccos(np.clip((gt_normals * normals).sum(-1), -1, 1)) * 180 / np.pi
+        normal_err = np.arccos(np.clip(np.abs((gt_normals * normals).sum(-1)), -1, 1)) * 180 / np.pi
 
         fig = plt.figure(figsize=(10, 6))
         plt.subplots_adjust(left=0.05, right=0.85, top=0.95, bottom=0.05)
@@ -143,15 +151,20 @@ def file_logger(data_batch, preds, output_dir, prefix):
         plt.savefig(step_dir / f"{kshort}_norm_err.png")
 
         visualize_normal_map(normals, step_dir / f"{kshort}_normals.png")
-        normal_err[invalid_mask_bool] = 0.0
-        metric["mean norm err"] = np.abs(normal_err).sum() / valid_mask_bool.sum()
-        metric["<5 deg"] = np.logical_and(np.abs(normal_err) < 5, valid_mask_bool).sum() * 100.0 / valid_mask_bool.sum()
-        metric["<10 deg"] = np.logical_and(np.abs(normal_err) < 10, valid_mask_bool).sum() * 100.0 / valid_mask_bool.sum()
+        valid_normal_err = normal_err[valid_mask_bool]
+        metric["val mean norm err"] = np.abs(valid_normal_err).mean()
+        metric["val <5 deg"] = (np.abs(valid_normal_err) < 5).mean()
+        metric["val <10 deg"] = (np.abs(valid_normal_err) < 10).mean()
 
         obj_normal_err = normal_err[object_mask_bool]
         metric["obj mean norm err"] = np.abs(obj_normal_err).mean()
         metric["obj <5 deg"] = (np.abs(obj_normal_err) < 5).mean() * 100.0
         metric["obj <10 deg"] = (np.abs(obj_normal_err) < 10).mean() * 100.0
+
+        inv_normal_err = normal_err[invalid_mask_bool]
+        metric["inv mean norm err"] = np.abs(inv_normal_err).mean()
+        metric["inv <5 deg"] = (np.abs(inv_normal_err) < 5).mean()
+        metric["inv <10 deg"] = (np.abs(inv_normal_err) < 10).mean()
 
         for mk, mv in metric.items():
             metric[mk] = "{:.2f}".format(mv)
@@ -208,5 +221,3 @@ def get_pixel_grids_np(height, width):
 def visualize_normal_map(normal_map, save_path):
     normal_map = ((normal_map + 1.0) / 2.0 * 255.0).astype(np.uint8)
     cv2.imwrite(save_path, normal_map)
-
-
