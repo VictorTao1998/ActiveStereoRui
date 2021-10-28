@@ -117,6 +117,12 @@ def train_model(model,
             save_scalars(writer, 'train', loss_dict, curr_epoch * total_iteration + iteration)
             save_scalars(writer, 'train', metric_dict, curr_epoch * total_iteration + iteration)
 
+            save_images(writer, 'train', {'img_L':[data_batch['img_sim_L'].detach().cpu()]}, curr_epoch * total_iteration + iteration)   
+            save_images(writer, 'train', {'img_R':[data_batch['img_sim_R'].detach().cpu()]}, curr_epoch * total_iteration + iteration)
+            save_images(writer, 'train', {'disp_gt':[data_batch['img_disp_l'].detach().cpu()]}, curr_epoch * total_iteration + iteration)   
+            #print(preds.items())
+            save_images(writer, 'train', {k:v.detach().cpu() for k, v in preds.items()}, curr_epoch * total_iteration + iteration)
+
 
     return meters
 
@@ -183,7 +189,18 @@ def validate_model(model,
                         meters=str(meters),
                     )
                 )
-                save_scalars(writer, 'val', meters.meters, curr_epoch * total_iteration + iteration)
+                #print(type(meters.meters), meters.meters)
+                #print(meters.meters['loss'].avg)
+                ouput_scalar = {}
+                for item in meters.meters:
+                    #print(item)
+                    ouput_scalar[item] = meters.meters[item].avg
+                save_scalars(writer, 'val', ouput_scalar, curr_epoch * total_iteration + iteration)
+
+                save_images(writer, 'val', {'img_L':[data_batch['img_sim_L'].detach().cpu()]}, curr_epoch * total_iteration + iteration)   
+                save_images(writer, 'val', {'img_R':[data_batch['img_sim_R'].detach().cpu()]}, curr_epoch * total_iteration + iteration)
+                save_images(writer, 'val', {'disp_gt':[data_batch['img_disp_l'].detach().cpu()]}, curr_epoch * total_iteration + iteration)   
+                save_images(writer, 'val', {k:v.detach().cpu() for k, v in preds.items()}, curr_epoch * total_iteration + iteration)
 
 
     return meters
@@ -305,7 +322,7 @@ def train(args, cfg, output_dir, writer):
                                     data_loader=val_data_loader,
                                     curr_epoch=epoch,
                                     writer=writer,
-                                    log_period=100,
+                                    log_period=args.summary_freq,
                                     file_log_period=1000000,
                                     output_dir=output_dir,
                                     )
