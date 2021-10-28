@@ -59,7 +59,7 @@ class Windowed_Matching_Loss(nn.Module):
         self.fetch_module = Fetch_Module()
 
     def forward(self, preds, data_batch):
-        left_ir, right_ir = data_batch["left_ir"], data_batch["right_ir"]
+        left_ir, right_ir = data_batch["img_sim_L"], data_batch["img_sim_R"]
         batch_size, channel, height, width = left_ir.shape
         assert (channel == 1)
         lcn_left_ir, left_std = local_contrast_norm(left_ir, self.lcn_kernel_size)

@@ -21,7 +21,10 @@ class Metric(nn.Module):
     def forward(self, preds, data_batch):
         coarse_disp_pred = preds["coarse_disp"]
         refined_disp_pred = preds["refined_disp"]
-        disp_gt = data_batch["disp_map"]
+        disp_gt = data_batch["img_disp_l"]
+
+        disp_gt = F.interpolate(disp_gt, scale_factor=0.5, mode='nearest',
+                             recompute_scale_factor=False)  # [bs, 1, H, W]
 
         disp_gt_resized = F.interpolate(disp_gt, (coarse_disp_pred.shape[2], coarse_disp_pred.shape[3]))
         coarse_1pixel_percent, coarse_3pixel_percent = compute_less_percentage(coarse_disp_pred, disp_gt_resized)

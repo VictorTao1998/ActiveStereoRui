@@ -3,12 +3,8 @@ import argparse
 import os.path as osp
 import logging
 import time
-import git
 import sys
-import open3d
-from path import Path
 
-sys.path.insert(0, osp.dirname(__file__) + '/..')
 
 import torch
 import torch.nn as nn
@@ -112,13 +108,7 @@ def test(cfg, output_dir):
     model = nn.DataParallel(model).cuda()
 
     # build checkpointer
-    checkpointer = Checkpointer(model, save_dir=output_dir)
-
-    if cfg.TEST.WEIGHT:
-        weight_path = cfg.TEST.WEIGHT.replace("@", output_dir)
-        checkpointer.load(weight_path, resume=False)
-    else:
-        checkpointer.load(None, resume=True)
+  
 
     # build data loader
     test_data_loader = build_data_loader(cfg, mode="test")
@@ -151,19 +141,10 @@ def main():
     assert cfg.TEST.BATCH_SIZE == 1
 
     output_dir = cfg.OUTPUT_DIR
-    if output_dir:
-        config_path = osp.splitext(args.config_file)[0]
-        config_path = config_path.replace("configs", "outputs")
-        output_dir = output_dir.replace('@', config_path)
-        Path(output_dir).makedirs_p()
+
 
     logger = setup_logger("activestereonet", output_dir, prefix="test")
-    try:
-        repo = git.Repo(path=output_dir, search_parent_directories=True)
-        sha = repo.head.object.hexsha
-        logger.info("Git SHA: {}".format(sha))
-    except:
-        logger.info("No git info")
+ 
 
     logger.info("Using {} GPUs".format(num_gpus))
     logger.info(args)

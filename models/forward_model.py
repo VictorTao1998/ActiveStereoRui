@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from activestereonet.modules.networks import SiameseTower, CostVolumeFilter, DisparityRefinement, InvalidationNetwork
-from activestereonet.modules.functions import build_cost_volume
+from modules.networks import SiameseTower, CostVolumeFilter, DisparityRefinement, InvalidationNetwork
+from modules.functions import build_cost_volume
 
 
 class ActiveStereoNet(nn.Module):
@@ -17,7 +17,7 @@ class ActiveStereoNet(nn.Module):
 
     def forward(self, data_batch, pred_invalid=False, consistency_check=False):
         preds = {}
-        left_ir, right_ir = data_batch["left_ir"], data_batch["right_ir"]
+        left_ir, right_ir = data_batch["img_sim_L"], data_batch["img_sim_R"]
         batch_size, _, height, width = left_ir.shape
         left_tower_feature = self.siamese_tower(left_ir)
         right_tower_feature = self.siamese_tower(right_ir)

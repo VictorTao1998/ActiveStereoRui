@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from activestereonet.nn.init import init_uniform, init_bn
+from nn.init import init_uniform, init_bn
 
 
 def convbn(in_channel, out_channel, kernel_size, stride, pad, dilation):
